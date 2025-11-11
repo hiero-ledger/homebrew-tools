@@ -14,9 +14,14 @@ https://github.com/Homebrew/homebrew-core/blob/main/Formula/b/bazel.rb
 https://docs.brew.sh/Acceptable-Formulae
 
 ## How to install Solo using Brew
-
+Install the latest version of Solo using Homebrew:
 ```
 brew install hiero-ledger/tools/solo
+```
+
+Install a specific version of Solo using Homebrew:
+```
+brew install hiero-ledger/tools/solo@<version>
 ```
 
 ## Contribute
