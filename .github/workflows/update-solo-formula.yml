@@ -1,0 +1,118 @@
+name: Update Homebrew Solo Formula
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "New Solo version (e.g. 0.50.0)"
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      version:
+        description: "New Solo version (e.g. 0.50.0)"
+        required: true
+        type: string
+
+jobs:
+  update-formula:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@df199fb7be9f65074067a9eb93f12bb4c5547cf2 # v2.13.3
+        with:
+          egress-policy: audit
+    
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Update Homebrew solo formula
+        env:
+          NEW_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          NEW_VERSION="${NEW_VERSION//[[:space:]]/}"
+          if [ -z "${NEW_VERSION}" ]; then
+            echo "NEW_VERSION is empty" >&2
+            exit 1
+          fi
+
+          FORMULA_DIR="Formula"
+          CURRENT_FORMULA="${FORMULA_DIR}/solo.rb"
+          TEMPLATE="${FORMULA_DIR}/solo@0.48.0.rb"
+
+          if [ ! -f "${CURRENT_FORMULA}" ]; then
+            echo "Missing ${CURRENT_FORMULA}" >&2
+            exit 1
+          fi
+
+          if [ ! -f "${TEMPLATE}" ]; then
+            echo "Missing template ${TEMPLATE}" >&2
+            exit 1
+          fi
+
+          # Determine current version from solo.rb
+          CURRENT_VERSION=$(grep -E '^[[:space:]]*version\s+"' "${CURRENT_FORMULA}" | sed -E 's/^[[:space:]]*version\s+"([^"]+)".*/\1/')
+          if [ -z "${CURRENT_VERSION}" ]; then
+            echo "Could not parse current version from ${CURRENT_FORMULA}" >&2
+            exit 1
+          fi
+
+          if [ "${CURRENT_VERSION}" = "${NEW_VERSION}" ]; then
+            echo "New version ${NEW_VERSION} is the same as current version" >&2
+            exit 1
+          fi
+
+          # Create pinned formula for current version
+          VERSIONED_FORMULA="${FORMULA_DIR}/solo@${CURRENT_VERSION}.rb"
+          if [ -e "${VERSIONED_FORMULA}" ]; then
+            echo "Versioned formula already exists: ${VERSIONED_FORMULA}" >&2
+            exit 1
+          fi
+          cp "${CURRENT_FORMULA}" "${VERSIONED_FORMULA}"
+          echo "Created pinned formula ${VERSIONED_FORMULA}"
+
+          # Build new solo.rb from 0.48.0 template
+          TEMPLATE_VERSION="0.48.0"
+          TEMPLATE_SUFFIX=$(echo "${TEMPLATE_VERSION}" | tr -d '.')
+          NEW_SUFFIX=$(echo "${NEW_VERSION}" | tr -d '.')
+
+          cp "${TEMPLATE}" "${CURRENT_FORMULA}"
+
+          NEW_URL="https://registry.npmjs.org/@hashgraph/solo/-/solo-${NEW_VERSION}.tgz"
+          echo "Downloading ${NEW_URL} to compute sha256..."
+          NEW_SHA256=$(curl -sL "${NEW_URL}" | sha256sum | awk '{print $1}')
+          if [ -z "${NEW_SHA256}" ]; then
+            echo "Failed to calculate sha256 for ${NEW_URL}" >&2
+            exit 1
+          fi
+          echo "Computed sha256: ${NEW_SHA256}"
+
+          # Replace class suffix
+          sed -i "s/SoloAT${TEMPLATE_SUFFIX}/SoloAT${NEW_SUFFIX}/g" "${CURRENT_FORMULA}"
+
+          # Replace version in desc (v0.48.0 -> vNEW_VERSION)
+          sed -i "s/v${TEMPLATE_VERSION}/v${NEW_VERSION}/g" "${CURRENT_FORMULA}"
+
+          # Replace url tarball version
+          sed -i "s/solo-${TEMPLATE_VERSION}\.tgz/solo-${NEW_VERSION}.tgz/g" "${CURRENT_FORMULA}"
+
+          # Replace version field
+          sed -i "s/version \"${TEMPLATE_VERSION}\"/version \"${NEW_VERSION}\"/g" "${CURRENT_FORMULA}"
+
+          # Replace sha256 line
+          sed -i "s/^  sha256 \".*\"$/  sha256 \"${NEW_SHA256}\"/" "${CURRENT_FORMULA}"
+
+          echo "Updated ${CURRENT_FORMULA} for version ${NEW_VERSION}"
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@98357b18bf14b5342f975ff684046ec3b2a07725 # v8.0.0
+        with:
+          commit-message: chore: bump solo Homebrew formula to ${{ github.event.inputs.version }}
+          branch: chore/bump-solo-homebrew-${{ github.event.inputs.version }}
+          title: chore: bump solo Homebrew formula to ${{ github.event.inputs.version }}
+          body: |
+            This pull request was created automatically by the **Update Homebrew Solo Formula** workflow.
+            Requested version: `${{ github.event.inputs.version }}`.

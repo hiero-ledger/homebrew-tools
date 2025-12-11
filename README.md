@@ -3,16 +3,6 @@
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/10697/badge)](https://bestpractices.coreinfrastructure.org/projects/10697)
 [![License](https://img.shields.io/badge/license-apache2-blue.svg)](LICENSE)
 
-## Overview
-
-The homebrew-tools project should contain one repository called homebrew-tools to have a central "Tap" for Homebrew in Hiero. By doing so, all Homebrew Formulas for Hiero tools can be maintained in this repository. The individual formula in the repo will be managed by code ownership as defined in our general guidelines.
-
-Some links to understand Homebrew Formulas better:
-
-https://github.com/mvogelgesang/homebrew-tiny-sh-example/blob/main/Formula/tiny-sh-example.rb
-https://github.com/Homebrew/homebrew-core/blob/main/Formula/b/bazel.rb
-https://docs.brew.sh/Acceptable-Formulae
-
 ## How to install Solo using Brew
 Install the latest version of Solo using Homebrew:
 ```
