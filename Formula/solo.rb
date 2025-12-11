@@ -1,5 +1,5 @@
-class Solo < Formula
-  desc "An opinionated CLI tool to deploy and manage standalone test networks."
+class SoloAT0490 < Formula # Class name must be unique!
+  desc "An opinionated CLI tool to deploy and manage standalone test networks (v0.49.0)."
   homepage "https://github.com/hiero-ledger/solo"
 
   url "https://registry.npmjs.org/@hashgraph/solo/-/solo-0.49.0.tgz"
