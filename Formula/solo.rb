@@ -1,4 +1,4 @@
-class SoloAT0510 < Formula
+class Solo < Formula
   desc "An opinionated CLI tool to deploy and manage standalone test networks."
   homepage "https://github.com/hiero-ledger/solo"
 
