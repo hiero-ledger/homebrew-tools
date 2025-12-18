@@ -83,7 +83,15 @@ if [[ -e "${VERSIONED_FORMULA}" ]]; then
   echo "Versioned formula already exists: ${VERSIONED_FORMULA}" >&2
   exit 1
 fi
+
+echo "CURRENT_FORMULA = ${CURRENT_FORMULA}"
+echo "CURRENT_VERSION = ${CURRENT_VERSION}"
+
+# Copy previous latest one to a pinned version one
+# Class name suffix (Solo -> Solo${CURRENT_VERSION)
+sedi "s/Solo/SoloAT${CURRENT_VERSION}/g" "${CURRENT_FORMULA}"
 cp "${CURRENT_FORMULA}" "${VERSIONED_FORMULA}"
+
 echo "Created pinned formula ${VERSIONED_FORMULA}"
 
 # Build the new Formula/solo.rb from the fixed 0.48.0 template.
@@ -121,12 +129,13 @@ fi
 echo "Computed sha256: ${NEW_SHA256}"
 
 # Replace the various version-specific bits in the copied template:
-#   - Class name suffix (SoloAT0480 -> SoloAT<NEW_SUFFIX>)
+# For latest release, class name should only be `Solo`
+#   - Class name suffix (SoloAT0480 -> Solo)
 #   - Human-readable version in the description
 #   - Tarball name in the url
 #   - version "..." stanza
 #   - sha256 line
-sedi "s/SoloAT${TEMPLATE_SUFFIX}/SoloAT${NEW_SUFFIX}/g" "${CURRENT_FORMULA}"
+sedi "s/SoloAT${TEMPLATE_SUFFIX}/Solo/g" "${CURRENT_FORMULA}"
 
 # Replace version in desc (v0.48.0 -> vNEW_VERSION)
 sedi "s/v${TEMPLATE_VERSION}/v${NEW_VERSION}/g" "${CURRENT_FORMULA}"
