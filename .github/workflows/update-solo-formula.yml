@@ -22,7 +22,7 @@ jobs:
         uses: step-security/harden-runner@df199fb7be9f65074067a9eb93f12bb4c5547cf2 # v2.13.3
         with:
           egress-policy: audit
-    
+
       - name: Checkout repository
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
@@ -35,9 +35,12 @@ jobs:
       - name: Create pull request
         uses: peter-evans/create-pull-request@98357b18bf14b5342f975ff684046ec3b2a07725 # v8.0.0
         with:
-          commit-message: chore: bump solo Homebrew formula to ${{ inputs.version || github.event.inputs.version }}
-          branch: chore/bump-solo-homebrew-${{ inputs.version || github.event.inputs.version }}
-          title: chore: bump solo Homebrew formula to ${{ inputs.version || github.event.inputs.version }}
+          commit-message: >-
+            chore: bump solo Homebrew formula to ${{ inputs.version || github.event.inputs.version }}
+          branch: >-
+            chore/bump-solo-homebrew-${{ inputs.version || github.event.inputs.version }}
+          title: >-
+            chore: bump solo Homebrew formula to ${{ inputs.version || github.event.inputs.version }}
           body: |
             This pull request was created automatically by the **Update Homebrew Solo Formula** workflow.
             Requested version: `${{ inputs.version || github.event.inputs.version }}`.
