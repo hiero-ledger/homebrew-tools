@@ -13,8 +13,14 @@ on:
         description: "New Solo version (e.g. 0.50.0)"
         required: true
         type: string
+permissions:
+  contents: read
+
 jobs:
   update-formula:
+    permissions:
+      contents: write  # for peter-evans/create-pull-request to create branch
+      pull-requests: write  # for peter-evans/create-pull-request to create a PR
     runs-on: ubuntu-latest
 
     steps:
