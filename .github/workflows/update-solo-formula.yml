@@ -45,8 +45,7 @@ jobs:
       - name: Update Homebrew solo formula
         env:
           NEW_VERSION: ${{ inputs.version || github.event.inputs.version }}
-        run: |
-          bash .github/scripts/update-solo-formula.sh
+        run: bash .github/scripts/update-solo-formula.sh
 
       - name: Commit Version Changes
         id: git-commit
