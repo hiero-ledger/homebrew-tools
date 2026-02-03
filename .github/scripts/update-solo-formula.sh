@@ -87,9 +87,12 @@ fi
 echo "CURRENT_FORMULA = ${CURRENT_FORMULA}"
 echo "CURRENT_VERSION = ${CURRENT_VERSION}"
 
+# Compute suffix for the current version (remove dots for class name)
+CURRENT_SUFFIX=$(echo "${CURRENT_VERSION}" | tr -d '.')
+
 # Copy previous latest one to a pinned version one
-# Class name suffix (Solo -> Solo${CURRENT_VERSION)
-sedi "s/Solo/SoloAT${CURRENT_VERSION}/g" "${CURRENT_FORMULA}"
+# Class name suffix (Solo -> SoloAT${CURRENT_SUFFIX})
+sedi "s/Solo/SoloAT${CURRENT_SUFFIX}/g" "${CURRENT_FORMULA}"
 cp "${CURRENT_FORMULA}" "${VERSIONED_FORMULA}"
 
 echo "Created pinned formula ${VERSIONED_FORMULA}"
