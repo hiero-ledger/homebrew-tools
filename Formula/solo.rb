@@ -10,7 +10,8 @@ class Solo < Formula
 
   def install
     npm_packages = ["@hiero-ledger/solo", "@hashgraph/solo"]
-    npm_root = Utils.popen_read("npm", "root", "-g").strip
+    npm_env = {"NPM_CONFIG_PREFIX" => nil}
+    npm_root = Utils.popen_read(npm_env, "npm", "root", "-g").strip
 
     npm_packages.each do |pkg|
       pkg_scope, pkg_name = pkg.split("/")
@@ -35,7 +36,9 @@ class Solo < Formula
     end
 
     npm_packages.each do |pkg|
-      if system "npm", "ls", "-g", "--depth=0", pkg
+      pkg_scope, pkg_name = pkg.split("/")
+      pkg_path = File.join(npm_root, pkg_scope, pkg_name)
+      if !npm_root.empty? && File.exist?(pkg_path)
         opoo <<~EOS
           ATTENTION: Detected a global npm install for #{pkg}.
           Attempting to uninstall to avoid conflicts with the Homebrew install.
@@ -53,6 +56,26 @@ class Solo < Formula
 
     system "npm", "install", *std_npm_args
     bin.install_symlink Dir["#{libexec}/bin/*"]
+  end
+
+  def post_install
+    brew_bin_solo = HOMEBREW_PREFIX/"bin/solo"
+    return unless brew_bin_solo.exist?
+
+    target = brew_bin_solo.symlink? ? brew_bin_solo.realpath.to_s : brew_bin_solo.to_s
+    allow_prefixes = [
+      (HOMEBREW_PREFIX/"Cellar/solo").to_s,
+      (HOMEBREW_PREFIX/"opt/solo").to_s,
+    ]
+
+    return if allow_prefixes.any? { |prefix| target.start_with?(prefix) }
+
+    odie <<~EOS
+      ATTENTION: Found an existing solo binary at #{brew_bin_solo}.
+      Target: #{target}
+      Please remove it before installing: rm '#{brew_bin_solo}'
+      Alternatively: brew link --overwrite solo
+    EOS
   end
 
   test do
