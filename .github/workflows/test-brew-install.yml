@@ -1,0 +1,91 @@
+name: "Test Brew Install Conflicts"
+
+on:
+  workflow_dispatch:
+    inputs:
+      old-solo-version:
+        description: "Old solo version to preinstall (npm/brew)"
+        type: string
+        required: false
+        default: ""
+      new-solo-version:
+        description: "New solo version to install via brew (leave blank for latest)"
+        type: string
+        required: false
+        default: ""
+
+jobs:
+  test-brew-install:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+        scenario:
+          - npm
+          - brew
+          - npm-link
+          - stale-brew-bin
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+      OLD_SOLO_VERSION: "${{ github.event.inputs.old-solo-version || '0.53.1' }}"
+      NEW_SOLO_VERSION: "${{ github.event.inputs.new-solo-version || '' }}"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node
+        uses: actions/setup-node@60b0f8f9570cb405f4b3f6e8c1d1bd6287ea6d6d # v4.0.4
+        with:
+          node-version: "20"
+
+      - name: Tap Local Formula
+        run: brew tap --custom-remote hiero-ledger/tools "$GITHUB_WORKSPACE"
+
+      - name: Install old solo via npm
+        if: matrix.scenario == 'npm'
+        run: |
+          if [ -n "${OLD_SOLO_VERSION}" ]; then
+            npm install -g @hashgraph/solo@${OLD_SOLO_VERSION}
+          else
+            npm install -g @hashgraph/solo
+          fi
+
+      - name: Install old solo via brew
+        if: matrix.scenario == 'brew'
+        run: |
+          if [ -n "${OLD_SOLO_VERSION}" ]; then
+            brew install hiero-ledger/tools/solo@${OLD_SOLO_VERSION}
+            brew link --overwrite solo@${OLD_SOLO_VERSION} || true
+          else
+            brew install hiero-ledger/tools/solo
+            brew link --overwrite solo || true
+          fi
+
+      - name: Create npm link conflict
+        if: matrix.scenario == 'npm-link'
+        run: |
+          npm_root="$(npm root -g)"
+          mkdir -p "${npm_root}/@hashgraph"
+          ln -sf "$GITHUB_WORKSPACE" "${npm_root}/@hashgraph/solo"
+
+      - name: Create stale brew bin symlink
+        if: matrix.scenario == 'stale-brew-bin'
+        run: ln -sf /opt/homebrew/lib/node_modules/@hashgraph/solo/dist/solo.js /opt/homebrew/bin/solo
+
+      - name: Verify old solo works
+        run: solo --version
+
+      - name: Install latest solo via brew
+        run: |
+          if [ -n "${NEW_SOLO_VERSION}" ]; then
+            brew reinstall --build-from-source hiero-ledger/tools/solo@${NEW_SOLO_VERSION}
+            brew link --overwrite solo@${NEW_SOLO_VERSION} || true
+          else
+            brew reinstall --build-from-source hiero-ledger/tools/solo
+          fi
+
+      - name: Verify latest solo works
+        run: solo --version

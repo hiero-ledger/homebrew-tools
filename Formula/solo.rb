@@ -9,13 +9,49 @@ class Solo < Formula
   depends_on "node"
 
   def install
+    # Step 0: Validate environment prerequisites before modifying the system.
+    if OS.windows?
+      odie "Homebrew formulae are not supported on Windows. Use npm or a Windows package manager instead."
+    end
+    odie "npm was not found in PATH; install Node.js first." if which("npm").nil?
+
+    # Step 1: Remove any non-Homebrew solo binary/symlink to avoid link conflicts.
+    brew_bin_solo = HOMEBREW_PREFIX/"bin/solo"
+    if brew_bin_solo.exist?
+      if brew_bin_solo.symlink?
+        target = brew_bin_solo.realpath.to_s
+        allow_prefixes = [
+          (HOMEBREW_PREFIX/"Cellar/solo").to_s,
+          (HOMEBREW_PREFIX/"opt/solo").to_s,
+        ]
+
+        unless allow_prefixes.any? { |prefix| target.start_with?(prefix) }
+          opoo <<~EOS
+            ATTENTION: Found a non-Homebrew solo symlink at #{brew_bin_solo}.
+            Target: #{target}
+            Removing it to avoid conflicts with the Homebrew install.
+          EOS
+          brew_bin_solo.unlink
+        end
+      else
+        opoo <<~EOS
+          ATTENTION: Found a non-Homebrew solo binary at #{brew_bin_solo}.
+          Removing it to avoid conflicts with the Homebrew install.
+        EOS
+        brew_bin_solo.delete
+      end
+    end
+
+    # Step 2: Detect and remove global npm links/installations that conflict with Homebrew.
     npm_packages = ["@hiero-ledger/solo", "@hashgraph/solo"]
     npm_env = {"NPM_CONFIG_PREFIX" => nil}
     npm_root = Utils.popen_read(npm_env, "npm", "root", "-g").strip
+    brew_prefix_root = (HOMEBREW_PREFIX/"lib/node_modules").to_s
 
     npm_packages.each do |pkg|
       pkg_scope, pkg_name = pkg.split("/")
       pkg_path = File.join(npm_root, pkg_scope, pkg_name)
+      brew_pkg_path = File.join(brew_prefix_root, pkg_scope, pkg_name)
 
       if !npm_root.empty? && File.symlink?(pkg_path)
         opoo <<~EOS
@@ -52,13 +88,30 @@ class Solo < Formula
           EOS
         end
       end
+
+      if File.exist?(brew_pkg_path)
+        opoo <<~EOS
+          ATTENTION: Detected a global npm install for #{pkg} under #{brew_prefix_root}.
+          Attempting to uninstall to avoid conflicts with the Homebrew install.
+        EOS
+        if system "npm", "uninstall", "-g", "--prefix", HOMEBREW_PREFIX.to_s, pkg
+          ohai "Removed npm install for #{pkg} under #{brew_prefix_root}."
+        else
+          odie <<~EOS
+            ATTENTION: Detected a global npm install of #{pkg} under #{brew_prefix_root} that could not be removed.
+            Please run: npm uninstall -g --prefix #{HOMEBREW_PREFIX} #{pkg}
+          EOS
+        end
+      end
     end
 
+    # Step 3: Install the Homebrew-managed npm package and expose the binary.
     system "npm", "install", *std_npm_args
     bin.install_symlink Dir["#{libexec}/bin/*"]
   end
 
   def post_install
+    # Step 4: Guard against any lingering non-Homebrew solo binary after install.
     brew_bin_solo = HOMEBREW_PREFIX/"bin/solo"
     return unless brew_bin_solo.exist?
 
