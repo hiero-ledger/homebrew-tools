@@ -104,6 +104,18 @@ jobs:
           mkdir -p "${npm_root}/@hashgraph"
           ln -sf "$GITHUB_WORKSPACE" "${npm_root}/@hashgraph/solo"
 
+      - name: Normalize brew/npm permissions for npm scenarios
+        if: matrix.scenario == 'npm' || matrix.scenario == 'npm-link'
+        run: |
+          brew_prefix="$(brew --prefix)"
+          npm_root="${brew_prefix}/lib/node_modules"
+          sudo chown -R "$USER":"$(id -gn)" "${npm_root}/@hashgraph" "${npm_root}/@hiero-ledger" 2>/dev/null || true
+          sudo chmod -R u+rwX "${npm_root}/@hashgraph" "${npm_root}/@hiero-ledger" 2>/dev/null || true
+          if [ -e "${brew_prefix}/bin/solo" ]; then
+            sudo chown -h "$USER":"$(id -gn)" "${brew_prefix}/bin/solo" 2>/dev/null || true
+            sudo chmod u+rw "${brew_prefix}/bin/solo" 2>/dev/null || true
+          fi
+
       - name: Create stale brew bin symlink
         if: matrix.scenario == 'stale-brew-bin'
         run: |
@@ -163,6 +175,7 @@ jobs:
           sudo chmod -R u+rwX "${npm_root}/@hashgraph" "${npm_root}/@hiero-ledger"
 
       - name: Brew test solo
+        if: matrix.scenario != 'npm-permission'
         run: |
           if [ -n "${NEW_SOLO_VERSION}" ]; then
             brew test hiero-ledger/tools/solo@${NEW_SOLO_VERSION}
