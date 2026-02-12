@@ -71,6 +71,7 @@ class Solo < Formula
     npm_packages.each do |pkg|
       pkg_scope, pkg_name = pkg.split("/")
       pkg_path = File.join(npm_root, pkg_scope, pkg_name)
+      brew_pkg_path = File.join(brew_prefix_root, pkg_scope, pkg_name)
       if !npm_root.empty? && File.exist?(pkg_path)
         opoo <<~EOS
           ATTENTION: Detected a global npm install for #{pkg}.
