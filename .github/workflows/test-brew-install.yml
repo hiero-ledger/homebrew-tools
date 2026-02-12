@@ -74,7 +74,8 @@ jobs:
           else
             npm install -g @hashgraph/solo
           fi
-          chmod -w /opt/homebrew/lib/node_modules
+          sudo chown -R root:wheel /opt/homebrew/lib/node_modules
+          sudo chmod -R 555 /opt/homebrew/lib/node_modules
 
       - name: Install old solo via brew
         if: matrix.scenario == 'brew'
@@ -136,6 +137,12 @@ jobs:
             echo "Expected permissions guidance not found in brew output."
             exit 1
           fi
+
+      - name: Restore npm permissions
+        if: matrix.scenario == 'npm-permission'
+        run: |
+          sudo chown -R "$USER":staff /opt/homebrew/lib/node_modules
+          sudo chmod -R u+rwX /opt/homebrew/lib/node_modules
 
       - name: Brew test solo
         run: |
