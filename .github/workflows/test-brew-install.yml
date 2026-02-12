@@ -13,6 +13,10 @@ on:
         type: string
         required: false
         default: ""
+  pull_request:
+    paths:
+      - "Formula/**"
+      - ".github/workflows/test-brew-install.yml"
 
 permissions:
   contents: read
@@ -92,3 +96,11 @@ jobs:
 
       - name: Verify latest solo works
         run: solo --version
+
+      - name: Brew test solo
+        run: |
+          if [ -n "${NEW_SOLO_VERSION}" ]; then
+            brew test hiero-ledger/tools/solo@${NEW_SOLO_VERSION}
+          else
+            brew test hiero-ledger/tools/solo
+          fi
