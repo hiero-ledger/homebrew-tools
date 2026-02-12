@@ -130,6 +130,6 @@ class Solo < Formula
   end
 
   test do
-    assert_match "Usage: solo", shell_output("#{bin}/solo --help")
+    assert_match(/^Usage:\s+solo\b/m, shell_output("#{bin}/solo --help"))
   end
 end
