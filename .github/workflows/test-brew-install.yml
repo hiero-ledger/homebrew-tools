@@ -74,8 +74,9 @@ jobs:
           else
             npm install -g @hashgraph/solo
           fi
-          sudo chown -R root:wheel /opt/homebrew/lib/node_modules
-          sudo chmod -R 555 /opt/homebrew/lib/node_modules
+          sudo mkdir -p /opt/homebrew/lib/node_modules/@hashgraph /opt/homebrew/lib/node_modules/@hiero-ledger
+          sudo chown -R root:wheel /opt/homebrew/lib/node_modules/@hashgraph /opt/homebrew/lib/node_modules/@hiero-ledger
+          sudo chmod -R 555 /opt/homebrew/lib/node_modules/@hashgraph /opt/homebrew/lib/node_modules/@hiero-ledger
 
       - name: Install old solo via brew
         if: matrix.scenario == 'brew'
@@ -141,8 +142,8 @@ jobs:
       - name: Restore npm permissions
         if: matrix.scenario == 'npm-permission'
         run: |
-          sudo chown -R "$USER":staff /opt/homebrew/lib/node_modules
-          sudo chmod -R u+rwX /opt/homebrew/lib/node_modules
+          sudo chown -R "$USER":staff /opt/homebrew/lib/node_modules/@hashgraph /opt/homebrew/lib/node_modules/@hiero-ledger
+          sudo chmod -R u+rwX /opt/homebrew/lib/node_modules/@hashgraph /opt/homebrew/lib/node_modules/@hiero-ledger
 
       - name: Brew test solo
         run: |
