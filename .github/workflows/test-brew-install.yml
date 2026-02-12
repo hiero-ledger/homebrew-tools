@@ -101,6 +101,10 @@ jobs:
 
       - name: Install latest solo via brew
         run: |
+          if [ -n "${OLD_SOLO_VERSION}" ] && brew list --versions "solo@${OLD_SOLO_VERSION}" >/dev/null 2>&1; then
+            brew unlink "solo@${OLD_SOLO_VERSION}" || true
+          fi
+          brew unlink solo || true
           if [ -n "${NEW_SOLO_VERSION}" ]; then
             brew reinstall --build-from-source hiero-ledger/tools/solo@${NEW_SOLO_VERSION}
             brew link --overwrite solo@${NEW_SOLO_VERSION} || true
