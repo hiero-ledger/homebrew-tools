@@ -74,9 +74,10 @@ jobs:
           else
             npm install -g @hashgraph/solo
           fi
-          sudo mkdir -p /opt/homebrew/lib/node_modules/@hashgraph /opt/homebrew/lib/node_modules/@hiero-ledger
-          sudo chown -R root:wheel /opt/homebrew/lib/node_modules/@hashgraph /opt/homebrew/lib/node_modules/@hiero-ledger
-          sudo chmod -R 555 /opt/homebrew/lib/node_modules/@hashgraph /opt/homebrew/lib/node_modules/@hiero-ledger
+          npm_root="$(npm root -g)"
+          sudo mkdir -p "${npm_root}/@hashgraph/solo" "${npm_root}/@hiero-ledger/solo"
+          sudo chown -R root:wheel "${npm_root}/@hashgraph" "${npm_root}/@hiero-ledger"
+          sudo chmod -R 555 "${npm_root}/@hashgraph" "${npm_root}/@hiero-ledger"
 
       - name: Install old solo via brew
         if: matrix.scenario == 'brew'
@@ -134,7 +135,7 @@ jobs:
         if: matrix.scenario == 'npm-permission'
         run: |
           brew reinstall --build-from-source hiero-ledger/tools/solo 2>&1 | tee brew-permission.log || true
-          if ! grep -q "permissions error" brew-permission.log; then
+          if ! grep -Eq "permissions error|sudo chown -R|npm uninstall -g" brew-permission.log; then
             echo "Expected permissions guidance not found in brew output."
             exit 1
           fi
@@ -142,8 +143,9 @@ jobs:
       - name: Restore npm permissions
         if: matrix.scenario == 'npm-permission'
         run: |
-          sudo chown -R "$USER":staff /opt/homebrew/lib/node_modules/@hashgraph /opt/homebrew/lib/node_modules/@hiero-ledger
-          sudo chmod -R u+rwX /opt/homebrew/lib/node_modules/@hashgraph /opt/homebrew/lib/node_modules/@hiero-ledger
+          npm_root="$(npm root -g)"
+          sudo chown -R "$USER":staff "${npm_root}/@hashgraph" "${npm_root}/@hiero-ledger"
+          sudo chmod -R u+rwX "${npm_root}/@hashgraph" "${npm_root}/@hiero-ledger"
 
       - name: Brew test solo
         run: |
