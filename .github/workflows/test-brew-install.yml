@@ -34,6 +34,7 @@ jobs:
           - brew
           - npm-link
           - stale-brew-bin
+          - npm-permission
     env:
       HOMEBREW_NO_AUTO_UPDATE: "1"
       HOMEBREW_NO_INSTALL_CLEANUP: "1"
@@ -64,6 +65,16 @@ jobs:
           else
             npm install -g @hashgraph/solo
           fi
+
+      - name: Prepare npm permission failure
+        if: matrix.scenario == 'npm-permission'
+        run: |
+          if [ -n "${OLD_SOLO_VERSION}" ]; then
+            npm install -g @hashgraph/solo@${OLD_SOLO_VERSION}
+          else
+            npm install -g @hashgraph/solo
+          fi
+          chmod -w /opt/homebrew/lib/node_modules
 
       - name: Install old solo via brew
         if: matrix.scenario == 'brew'
@@ -111,9 +122,20 @@ jobs:
           else
             brew reinstall --build-from-source hiero-ledger/tools/solo
           fi
+        continue-on-error: ${{ matrix.scenario == 'npm-permission' }}
 
       - name: Verify latest solo works
         run: solo --version
+        if: matrix.scenario != 'npm-permission'
+
+      - name: Verify npm permission error message
+        if: matrix.scenario == 'npm-permission'
+        run: |
+          brew reinstall --build-from-source hiero-ledger/tools/solo 2>&1 | tee brew-permission.log || true
+          if ! grep -q "permissions error" brew-permission.log; then
+            echo "Expected permissions guidance not found in brew output."
+            exit 1
+          fi
 
       - name: Brew test solo
         run: |

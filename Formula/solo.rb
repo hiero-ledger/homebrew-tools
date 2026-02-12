@@ -83,6 +83,9 @@ class Solo < Formula
           odie <<~EOS
             ATTENTION: Detected a global npm install of #{pkg} that could not be removed.
             Please run: npm uninstall -g #{pkg}
+            If you see a permissions error, try:
+              sudo chown -R "$(whoami)" #{HOMEBREW_PREFIX}/lib/node_modules
+              sudo npm uninstall -g #{pkg}
           EOS
         end
       end
@@ -98,6 +101,9 @@ class Solo < Formula
           odie <<~EOS
             ATTENTION: Detected a global npm install of #{pkg} under #{brew_prefix_root} that could not be removed.
             Please run: npm uninstall -g --prefix #{HOMEBREW_PREFIX} #{pkg}
+            If you see a permissions error, try:
+              sudo chown -R "$(whoami)" #{HOMEBREW_PREFIX}/lib/node_modules
+              sudo npm uninstall -g --prefix #{HOMEBREW_PREFIX} #{pkg}
           EOS
         end
       end
