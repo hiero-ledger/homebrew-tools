@@ -87,10 +87,11 @@ class Solo < Formula
           ATTENTION: Detected a global npm install for #{pkg}.
           Attempting to uninstall to avoid conflicts with the Homebrew install.
         EOS
-        if system "npm", "uninstall", "-g", pkg
+        begin
+          system "npm", "uninstall", "-g", pkg
           ohai "Removed global npm install for #{pkg}."
-        else
-          odie <<~EOS
+        rescue BuildError
+          opoo <<~EOS
             ATTENTION: Detected a global npm install of #{pkg} that could not be removed.
             Please run: npm uninstall -g #{pkg}
             If you see a permissions error, try:
@@ -105,10 +106,11 @@ class Solo < Formula
           ATTENTION: Detected a global npm install for #{pkg} under #{brew_prefix_root}.
           Attempting to uninstall to avoid conflicts with the Homebrew install.
         EOS
-        if system "npm", "uninstall", "-g", "--prefix", HOMEBREW_PREFIX.to_s, pkg
+        begin
+          system "npm", "uninstall", "-g", "--prefix", HOMEBREW_PREFIX.to_s, pkg
           ohai "Removed npm install for #{pkg} under #{brew_prefix_root}."
-        else
-          odie <<~EOS
+        rescue BuildError
+          opoo <<~EOS
             ATTENTION: Detected a global npm install of #{pkg} under #{brew_prefix_root} that could not be removed.
             Please run: npm uninstall -g --prefix #{HOMEBREW_PREFIX} #{pkg}
             If you see a permissions error, try:
