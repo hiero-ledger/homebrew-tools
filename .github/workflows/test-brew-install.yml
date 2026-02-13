@@ -109,6 +109,10 @@ jobs:
         run: |
           brew_prefix="$(brew --prefix)"
           npm_root="${brew_prefix}/lib/node_modules"
+          sudo mkdir -p "${npm_root}/@hashgraph" "${npm_root}/@hiero-ledger"
+          if [ "${RUNNER_OS}" = "macOS" ]; then
+            sudo chflags -R nouchg "${npm_root}" 2>/dev/null || true
+          fi
           sudo chown -R "$USER":"$(id -gn)" "${npm_root}" 2>/dev/null || true
           sudo chmod -R u+rwX "${npm_root}" 2>/dev/null || true
           if [ -e "${brew_prefix}/bin/solo" ]; then
