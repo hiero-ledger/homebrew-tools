@@ -57,7 +57,7 @@ class Solo < Formula
         EOS
         begin
           system "npm", "unlink", "-g", pkg
-        rescue ErrorDuringExecution
+        rescue BuildError
           opoo <<~EOS
             ATTENTION: Unable to unlink npm link for #{pkg}.
             Please run: npm unlink -g #{pkg}
