@@ -108,6 +108,9 @@ jobs:
         if: matrix.scenario == 'npm' || matrix.scenario == 'npm-link'
         run: |
           brew_prefix="$(brew --prefix)"
+          if ! brew list --versions node >/dev/null 2>&1; then
+            brew install node
+          fi
           npm_root="${brew_prefix}/lib/node_modules"
           sudo mkdir -p "${npm_root}/@hashgraph" "${npm_root}/@hiero-ledger"
           if [ "${RUNNER_OS}" = "macOS" ]; then
