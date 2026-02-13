@@ -82,7 +82,7 @@ class Solo < Formula
       pkg_scope, pkg_name = pkg.split("/")
       pkg_path = File.join(npm_root, pkg_scope, pkg_name)
       brew_pkg_path = File.join(brew_prefix_root, pkg_scope, pkg_name)
-      if !npm_root.empty? && File.exist?(pkg_path)
+      if !npm_root.empty? && File.exist?(pkg_path) && !File.symlink?(pkg_path)
         opoo <<~EOS
           ATTENTION: Detected a global npm install for #{pkg}.
           Attempting to uninstall to avoid conflicts with the Homebrew install.
@@ -100,7 +100,7 @@ class Solo < Formula
         end
       end
 
-      if File.exist?(brew_pkg_path)
+      if File.exist?(brew_pkg_path) && !File.symlink?(brew_pkg_path)
         opoo <<~EOS
           ATTENTION: Detected a global npm install for #{pkg} under #{brew_prefix_root}.
           Attempting to uninstall to avoid conflicts with the Homebrew install.
