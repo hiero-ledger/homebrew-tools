@@ -136,6 +136,11 @@ jobs:
       - name: Install latest solo via brew
         if: matrix.scenario != 'npm-permission'
         run: |
+          if [ "${{ matrix.scenario }}" = "npm" ] || [ "${{ matrix.scenario }}" = "npm-link" ]; then
+            brew_prefix="$(brew --prefix)"
+            sudo chown -R "$USER":"$(id -gn)" "${brew_prefix}/lib/node_modules" 2>/dev/null || true
+            sudo chmod -R u+rwX "${brew_prefix}/lib/node_modules" 2>/dev/null || true
+          fi
           if [ -n "${OLD_SOLO_VERSION}" ] && brew list --versions "solo@${OLD_SOLO_VERSION}" >/dev/null 2>&1; then
             brew unlink "solo@${OLD_SOLO_VERSION}" || true
           fi
