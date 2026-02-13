@@ -31,11 +31,11 @@ jobs:
           - macos-latest
           - ubuntu-latest
         scenario:
-          - npm
-          - brew
-          - npm-link
-          - stale-brew-bin
-          - npm-permission
+          - npm # preinstall via npm to test uninstall flow
+          - brew # preinstall via brew to test unlink/upgrade flow
+          - npm-link # create npm link to test unlink flow
+          - stale-brew-bin # create stale /bin/solo symlink to test cleanup
+          - npm-permission # simulate npm permission errors to test guidance
     env:
       HOMEBREW_NO_AUTO_UPDATE: "1"
       HOMEBREW_NO_INSTALL_CLEANUP: "1"

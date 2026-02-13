@@ -55,16 +55,9 @@ class Solo < Formula
           ATTENTION: Detected a global npm link for #{pkg}.
           Removing it to avoid conflicts with the Homebrew install.
         EOS
-        if system "npm", "unlink", "-g", pkg
-          if File.symlink?(pkg_path)
-            opoo <<~EOS
-              ATTENTION: npm link for #{pkg} is still present.
-              Please remove it manually: npm unlink -g #{pkg}
-            EOS
-          else
-            ohai "Removed npm link for #{pkg}."
-          end
-        else
+        begin
+          system "npm", "unlink", "-g", pkg
+        rescue ErrorDuringExecution
           opoo <<~EOS
             ATTENTION: Unable to unlink npm link for #{pkg}.
             Please run: npm unlink -g #{pkg}
@@ -72,6 +65,15 @@ class Solo < Formula
               sudo chown -R "$(whoami)" #{HOMEBREW_PREFIX}/lib/node_modules
               sudo npm unlink -g #{pkg}
           EOS
+        end
+
+        if File.symlink?(pkg_path)
+          opoo <<~EOS
+            ATTENTION: npm link for #{pkg} is still present.
+            Please remove it manually: npm unlink -g #{pkg}
+          EOS
+        else
+          ohai "Removed npm link for #{pkg}."
         end
       end
     end
