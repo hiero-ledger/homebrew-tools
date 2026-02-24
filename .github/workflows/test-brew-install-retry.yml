@@ -1,0 +1,113 @@
+name: "Test Brew Install Retry Recovery"
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "Formula/**"
+      - ".github/workflows/test-brew-install-retry.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test-brew-install-retry:
+    name: "retry-${{ matrix.os }}-t${{ matrix.base-timeout }}s"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - ubuntu-latest
+        base-timeout:
+          - 5
+          - 10
+          - 15
+          - 20
+          - 25
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Homebrew
+        uses: Homebrew/actions/setup-homebrew@9ceb7934560eb61d131dde205a6c2d77b2e1529d # master
+
+      - name: Tap Local Formula
+        run: brew tap --custom-remote hiero-ledger/tools "$GITHUB_WORKSPACE"
+
+      - name: Resolve timeout command
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v timeout >/dev/null 2>&1; then
+            echo "TIMEOUT_CMD=timeout" >> "$GITHUB_ENV"
+          elif command -v gtimeout >/dev/null 2>&1; then
+            echo "TIMEOUT_CMD=gtimeout" >> "$GITHUB_ENV"
+          else
+            brew install coreutils
+            echo "TIMEOUT_CMD=gtimeout" >> "$GITHUB_ENV"
+          fi
+
+      - name: Compute jittered timeout (+/- 0.5s)
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="${{ matrix.base-timeout }}"
+          JITTER="$(python3 -c 'import random; print(f"{random.uniform(-0.5, 0.5):.3f}")')"
+          FINAL="$(python3 -c "base=float('${BASE}'); jitter=float('${JITTER}'); print(f'{max(base+jitter,1.0):.3f}')")"
+          echo "JITTER_SECONDS=${JITTER}" >> "$GITHUB_ENV"
+          echo "TIMEOUT_SECONDS=${FINAL}" >> "$GITHUB_ENV"
+          echo "Using timeout ${FINAL}s (base ${BASE}s, jitter ${JITTER}s)"
+
+      - name: Cleanup any previous install
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew unlink solo >/dev/null 2>&1 || true
+          brew uninstall --ignore-dependencies solo >/dev/null 2>&1 || true
+          brew cleanup -s >/dev/null 2>&1 || true
+
+      - name: Stage 1 - start install and interrupt with timeout
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Running interrupted install using ${TIMEOUT_CMD} ${TIMEOUT_SECONDS}s"
+          set +e
+          ${TIMEOUT_CMD} "${TIMEOUT_SECONDS}s" brew install --build-from-source hiero-ledger/tools/solo
+          rc=$?
+          set -e
+
+          # timeout/gtimeout returns 124 when command timed out.
+          if [ "$rc" -ne 124 ]; then
+            echo "Expected timeout exit code 124, got $rc"
+            exit 1
+          fi
+          echo "Install interrupted as expected (rc=$rc)."
+
+      - name: Stage 2 - ensure interrupted process is gone
+        shell: bash
+        run: |
+          set -euo pipefail
+          if pgrep -f "brew install.*hiero-ledger/tools/solo" >/dev/null 2>&1; then
+            echo "Found leftover brew install process after timeout."
+            pgrep -af "brew install.*hiero-ledger/tools/solo" || true
+            exit 1
+          fi
+          echo "No leftover brew install process."
+
+      - name: Stage 3 - retry install should succeed
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install --build-from-source hiero-ledger/tools/solo
+          solo --version
+          brew test hiero-ledger/tools/solo
