@@ -111,3 +111,10 @@ jobs:
           brew install --build-from-source hiero-ledger/tools/solo
           solo --version
           brew test hiero-ledger/tools/solo
+
+      - name: Stage 4 - uninstall cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew unlink solo >/dev/null 2>&1 || true
+          brew uninstall --ignore-dependencies solo
