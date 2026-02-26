@@ -9,8 +9,6 @@ class Solo < Formula
   depends_on "node"
 
   def install
-    ohai "DEBUG: Starting the installation process for Solo formula..."
-
     # Step 0: Validate environment prerequisites before modifying the system.
     odie "npm was not found in PATH; install Node.js first." if which("npm").nil?
 
