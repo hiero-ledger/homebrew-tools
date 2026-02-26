@@ -2,8 +2,8 @@ require "language/node"
 class HieroCli < Formula
   desc "Command-line interface for interacting with the Hedera network"
   homepage "https://github.com/hiero-ledger/hiero-cli"
-  url "https://registry.npmjs.org/@hiero-ledger/hiero-cli/-/hiero-cli-0.11.1.tgz"
-  sha256 "49ab436e5c79533c31c6b9072325779470cc0615832e81ffc3dac5ef900032d0"
+  url "https://registry.npmjs.org/@hiero-ledger/hiero-cli/-/hiero-cli-0.13.0.tgz"
+  sha256 "cd00199d2b744f0e73b5473c7e494c71293a50b1b53530486f14884a0a3de369"
   license "Apache-2.0"
 
   depends_on "node"
