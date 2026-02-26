@@ -9,6 +9,8 @@ class Solo < Formula
   depends_on "node"
 
   def install
+    ohai "DEBUG: Starting the installation process for Solo formula..."
+
     # Step 0: Validate environment prerequisites before modifying the system.
     odie "npm was not found in PATH; install Node.js first." if which("npm").nil?
 
@@ -68,6 +70,30 @@ class Solo < Formula
       end
     end
 
+    # Step 3: Detect and remove manually created npm link records.
+    npm_list_output = Utils.popen_read(npm_env, "npm", "list", "--global", "--depth=0").lines
+    npm_list_output.each do |line|
+      npm_packages.each do |solo_package|
+        if line.include?(solo_package) && line.include?("->")
+          opoo <<~EOS
+            ATTENTION: Detected a manually linked npm package for #{solo_package}.
+            Attempting to unlink it to avoid conflicts with the Homebrew install.
+          EOS
+          system "npm", "unlink", "-g", solo_package
+
+          if Utils.popen_read("npm", "list", "--global", "--depth=0").include?(solo_package)
+            opoo <<~EOS
+              ATTENTION: npm link for #{solo_package} is still present.
+              Please remove it manually: npm unlink -g #{solo_package}
+            EOS
+          else
+            ohai "Removed manually linked npm package for #{solo_package}."
+          end
+        end
+      end
+    end
+    ohai "UNLINK END"
+
     npm_packages.each do |pkg|
       pkg_scope, pkg_name = pkg.split("/")
       pkg_path = File.join(npm_root, pkg_scope, pkg_name)
@@ -103,13 +129,13 @@ class Solo < Formula
       end
     end
 
-    # Step 3: Install the Homebrew-managed npm package and expose the binary.
+    # Step 4: Install the Homebrew-managed npm package and expose the binary.
     system "npm", "install", *std_npm_args
     bin.install_symlink Dir["#{libexec}/bin/*"]
   end
 
   def post_install
-    # Step 4: Guard against any lingering non-Homebrew solo binary after install.
+    # Step 5: Guard against any lingering non-Homebrew solo binary after install.
     brew_bin_solo = HOMEBREW_PREFIX/"bin/solo"
     return unless brew_bin_solo.exist?
 
