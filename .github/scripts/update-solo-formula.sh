@@ -4,9 +4,9 @@
 # Homebrew Solo formula to a new version. It performs the following:
 #   - Reads the current version from Formula/solo.rb
 #   - Creates a pinned Formula/solo@<current_version>.rb
-#   - Copies Formula/solo@0.48.0.rb to Formula/solo.rb
+#   - Renders Formula/solo.rb from Formula/solo.template.rb
 #   - Downloads the npm tarball for the new version and computes sha256
-#   - Updates class name, description, url, version, and sha256 in solo.rb
+#   - Updates url/version/sha256 placeholders in solo.rb
 #
 set -euo pipefail
 
@@ -17,10 +17,28 @@ set -euo pipefail
 NEW_VERSION_ENV="${NEW_VERSION:-}"
 NEW_VERSION_ARG="${1:-}"
 NEW_VERSION_RAW="${NEW_VERSION_ARG:-$NEW_VERSION_ENV}"
-NEW_VERSION="${NEW_VERSION_RAW//[[:space:]]/}"
+NEW_VERSION_INPUT="${NEW_VERSION_RAW//[[:space:]]/}"
+
+# Normalize versions to strict x.y.z form so npm tarball URLs are valid.
+# Examples:
+#   0.58   -> 0.58.0
+#   v0.58  -> 0.58.0
+#   0.58.0 -> 0.58.0
+normalize_semver() {
+  local raw="${1#v}"
+  if [[ "${raw}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "${raw}"
+  elif [[ "${raw}" =~ ^[0-9]+\.[0-9]+$ ]]; then
+    echo "${raw}.0"
+  else
+    echo ""
+  fi
+}
+
+NEW_VERSION="$(normalize_semver "${NEW_VERSION_INPUT}")"
 
 if [[ -z "${NEW_VERSION}" ]]; then
-  echo "Usage: NEW_VERSION=<version> $0 or $0 <version>" >&2
+  echo "Usage: NEW_VERSION=<x.y.z|x.y|vX.Y.Z> $0 or $0 <version>" >&2
   exit 1
 fi
 
@@ -28,7 +46,7 @@ fi
 # FORMULA_DIR can be overridden from the environment to point somewhere else.
 FORMULA_DIR="${FORMULA_DIR:-Formula}"
 CURRENT_FORMULA="${FORMULA_DIR}/solo.rb"          # The current Homebrew formula.
-TEMPLATE="${FORMULA_DIR}/solo@0.48.0.rb"          # Template used to generate the new version.
+TEMPLATE="${FORMULA_DIR}/solo.template.rb"        # Template used to generate the new version.
 
 # Sanity checks to ensure the required formula files exist before proceeding.
 if [[ ! -f "${CURRENT_FORMULA}" ]]; then
@@ -90,24 +108,14 @@ echo "CURRENT_VERSION = ${CURRENT_VERSION}"
 # Compute suffix for the current version (remove dots for class name)
 CURRENT_SUFFIX=$(echo "${CURRENT_VERSION}" | tr -d '.')
 
-# Copy previous latest one to a pinned version one
-# Class name suffix (Solo -> SoloAT${CURRENT_SUFFIX})
-sedi "s/Solo/SoloAT${CURRENT_SUFFIX}/g" "${CURRENT_FORMULA}"
+# Copy previous latest one to a pinned version one.
+# Class name suffix (Solo -> SoloAT${CURRENT_SUFFIX}).
 cp "${CURRENT_FORMULA}" "${VERSIONED_FORMULA}"
+sedi "s/Solo/SoloAT${CURRENT_SUFFIX}/g" "${VERSIONED_FORMULA}"
 
 echo "Created pinned formula ${VERSIONED_FORMULA}"
 
-# Build the new Formula/solo.rb from the fixed 0.48.0 template.
-# We keep the structure from the template but swap out:
-#   - Class suffix (SoloAT0480 -> SoloAT<NEW_SUFFIX>)
-#   - Version in the description (v0.48.0 -> v<NEW_VERSION>)
-#   - Tarball URL version segment
-#   - version "..." field
-#   - sha256 value
-TEMPLATE_VERSION="0.48.0"
-TEMPLATE_SUFFIX=$(echo "${TEMPLATE_VERSION}" | tr -d '.')
-NEW_SUFFIX=$(echo "${NEW_VERSION}" | tr -d '.')
-
+# Build the new Formula/solo.rb from the dedicated template.
 cp "${TEMPLATE}" "${CURRENT_FORMULA}"
 
 # Download the npm tarball for the target version and compute its
@@ -116,10 +124,10 @@ NEW_URL="https://registry.npmjs.org/@hashgraph/solo/-/solo-${NEW_VERSION}.tgz"
 echo "Downloading ${NEW_URL} to compute sha256..."
 if command -v sha256sum >/dev/null 2>&1; then
   # Linux / GNU coreutils: use sha256sum
-  NEW_SHA256=$(curl -sL "${NEW_URL}" | sha256sum | awk '{print $1}')
+  NEW_SHA256=$(curl -fsSL "${NEW_URL}" | sha256sum | awk '{print $1}')
 elif command -v shasum >/dev/null 2>&1; then
   # macOS: use shasum -a 256
-  NEW_SHA256=$(curl -sL "${NEW_URL}" | shasum -a 256 | awk '{print $1}')
+  NEW_SHA256=$(curl -fsSL "${NEW_URL}" | shasum -a 256 | awk '{print $1}')
 else
   echo "Neither sha256sum nor shasum is available" >&2
   exit 1
@@ -131,25 +139,8 @@ if [[ -z "${NEW_SHA256}" ]]; then
 fi
 echo "Computed sha256: ${NEW_SHA256}"
 
-# Replace the various version-specific bits in the copied template:
-# For latest release, class name should only be `Solo`
-#   - Class name suffix (SoloAT0480 -> Solo)
-#   - Human-readable version in the description
-#   - Tarball name in the url
-#   - version "..." stanza
-#   - sha256 line
-sedi "s/SoloAT${TEMPLATE_SUFFIX}/Solo/g" "${CURRENT_FORMULA}"
-
-# Replace version in desc (v0.48.0 -> vNEW_VERSION)
-sedi "s/v${TEMPLATE_VERSION}/v${NEW_VERSION}/g" "${CURRENT_FORMULA}"
-
-# Replace url tarball version
-sedi "s/solo-${TEMPLATE_VERSION}\.tgz/solo-${NEW_VERSION}.tgz/g" "${CURRENT_FORMULA}"
-
-# Replace version field
-sedi "s/version \"${TEMPLATE_VERSION}\"/version \"${NEW_VERSION}\"/g" "${CURRENT_FORMULA}"
-
-# Replace sha256 line
-sedi "s/^  sha256 \".*\"$/  sha256 \"${NEW_SHA256}\"/" "${CURRENT_FORMULA}"
+# Replace template placeholders.
+sedi "s/__SOLO_VERSION__/${NEW_VERSION}/g" "${CURRENT_FORMULA}"
+sedi "s/__SOLO_SHA256__/${NEW_SHA256}/g" "${CURRENT_FORMULA}"
 
 echo "Updated ${CURRENT_FORMULA} for version ${NEW_VERSION}"
