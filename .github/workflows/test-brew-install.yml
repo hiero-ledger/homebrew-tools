@@ -158,7 +158,7 @@ jobs:
           fi
 
       - name: Install latest solo via brew
-        if: matrix.scenario != 'npm-permission' && matrix.scenario != 'stale-brew-bin-permission'
+        if: matrix.scenario != 'npm-permission' && matrix.scenario != 'stale-brew-bin' && matrix.scenario != 'stale-brew-bin-permission'
         run: |
           if [ "${{ matrix.scenario }}" = "npm" ] || [ "${{ matrix.scenario }}" = "npm-link" ]; then
             brew_prefix="$(brew --prefix)"
@@ -177,6 +177,23 @@ jobs:
           fi
         continue-on-error: ${{ matrix.scenario == 'npm-permission' }}
 
+      - name: Verify stale symlink handling and retry install
+        if: matrix.scenario == 'stale-brew-bin'
+        run: |
+          set -euo pipefail
+          brew_prefix="$(brew --prefix)"
+
+          # First attempt should fail with actionable stale-symlink guidance.
+          brew reinstall --build-from-source hiero-ledger/tools/solo 2>&1 | tee brew-stale.log || true
+          if ! grep -Eq "Found an existing solo binary|Please remove it before installing|Could not symlink bin/solo|Target .*bin/solo.*already exists" brew-stale.log; then
+            echo "Expected stale symlink guidance not found in brew output."
+            exit 1
+          fi
+
+          # Remove stale symlink and retry.
+          rm -f "${brew_prefix}/bin/solo" || true
+          brew reinstall --build-from-source hiero-ledger/tools/solo
+
       - name: Verify stale symlink permission handling and retry install
         if: matrix.scenario == 'stale-brew-bin-permission'
         run: |
@@ -184,8 +201,8 @@ jobs:
 
           # First attempt should not crash with unhandled EPERM; we allow failure but require guidance.
           brew reinstall --build-from-source hiero-ledger/tools/solo 2>&1 | tee brew-stale-permission.log || true
-          if ! grep -Eq "Unable to remove .*bin/solo|Cannot remove .*bin/solo" brew-stale-permission.log; then
-            echo "Expected stale symlink permission guidance not found in brew output."
+          if ! grep -Eq "Unable to remove .*bin/solo|Cannot remove .*bin/solo|directories are not writable by your user|/home/linuxbrew/.linuxbrew/bin" brew-stale-permission.log; then
+            echo "Expected stale-symlink or preflight permission guidance not found in brew output."
             exit 1
           fi
 
