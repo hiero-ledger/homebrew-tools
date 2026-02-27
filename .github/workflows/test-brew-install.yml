@@ -35,6 +35,7 @@ jobs:
           - brew # preinstall via brew to test unlink/upgrade flow
           - npm-link # create npm link to test unlink flow
           - stale-brew-bin # create stale /bin/solo symlink to test cleanup
+          - stale-brew-bin-permission # create undeletable stale /bin/solo symlink to test EPERM handling
           - npm-permission # simulate npm permission errors to test guidance
     env:
       HOMEBREW_NO_AUTO_UPDATE: "1"
@@ -128,10 +129,22 @@ jobs:
           brew_prefix="$(brew --prefix)"
           ln -sf "${brew_prefix}/lib/node_modules/@hashgraph/solo/dist/solo.js" "${brew_prefix}/bin/solo"
 
+      - name: Create stale brew bin symlink with permission conflict
+        if: matrix.scenario == 'stale-brew-bin-permission'
+        run: |
+          brew_prefix="$(brew --prefix)"
+          ln -sf "${brew_prefix}/lib/node_modules/@hashgraph/solo/dist/solo.js" "${brew_prefix}/bin/solo"
+          if [ "${RUNNER_OS}" = "macOS" ]; then
+            sudo chflags uchg "${brew_prefix}/bin/solo"
+          else
+            sudo chown root:root "${brew_prefix}/bin/solo"
+            sudo chmod 444 "${brew_prefix}/bin/solo"
+          fi
+
       - name: Verify old solo works
         run: |
-          if [ "${{ matrix.scenario }}" = "stale-brew-bin" ]; then
-            echo "Skipping old solo verification for stale-brew-bin scenario."
+          if [ "${{ matrix.scenario }}" = "stale-brew-bin" ] || [ "${{ matrix.scenario }}" = "stale-brew-bin-permission" ]; then
+            echo "Skipping old solo verification for stale-brew-bin scenarios."
             exit 0
           fi
           if command -v solo >/dev/null 2>&1; then
@@ -141,7 +154,7 @@ jobs:
           fi
 
       - name: Install latest solo via brew
-        if: matrix.scenario != 'npm-permission'
+        if: matrix.scenario != 'npm-permission' && matrix.scenario != 'stale-brew-bin-permission'
         run: |
           if [ "${{ matrix.scenario }}" = "npm" ] || [ "${{ matrix.scenario }}" = "npm-link" ]; then
             brew_prefix="$(brew --prefix)"
@@ -159,6 +172,28 @@ jobs:
             brew reinstall --build-from-source hiero-ledger/tools/solo
           fi
         continue-on-error: ${{ matrix.scenario == 'npm-permission' }}
+
+      - name: Verify stale symlink permission handling and retry install
+        if: matrix.scenario == 'stale-brew-bin-permission'
+        run: |
+          brew_prefix="$(brew --prefix)"
+
+          # First attempt should not crash with unhandled EPERM; we allow failure but require guidance.
+          brew reinstall --build-from-source hiero-ledger/tools/solo 2>&1 | tee brew-stale-permission.log || true
+          if ! grep -Eq "Unable to remove .*bin/solo|Cannot remove .*bin/solo" brew-stale-permission.log; then
+            echo "Expected stale symlink permission guidance not found in brew output."
+            exit 1
+          fi
+
+          # Restore and retry should succeed.
+          if [ "${RUNNER_OS}" = "macOS" ]; then
+            sudo chflags nouchg "${brew_prefix}/bin/solo" || true
+          else
+            sudo chmod 644 "${brew_prefix}/bin/solo" || true
+            sudo chown "$USER":"$(id -gn)" "${brew_prefix}/bin/solo" || true
+          fi
+          rm -f "${brew_prefix}/bin/solo" || true
+          brew reinstall --build-from-source hiero-ledger/tools/solo
 
       - name: Verify latest solo works
         run: solo --version

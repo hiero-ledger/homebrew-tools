@@ -2,9 +2,9 @@ class Solo < Formula
   desc "An opinionated CLI tool to deploy and manage standalone test networks."
   homepage "https://github.com/hiero-ledger/solo"
 
-  url "https://registry.npmjs.org/@hashgraph/solo/-/solo-0.58.0.tgz"
-  sha256 "78b40f01cabe90224ffc40b53ad24bfb9599dc4c5c2add44b05e61e2026498c5"
-  version "0.58.0"
+  url "https://registry.npmjs.org/@hashgraph/solo/-/solo-0.59.1.tgz"
+  sha256 "a01a5ce366de5ae9449fc6240354b8d76f6cd8b674437d9509d3275d1f90d0cc"
+  version "0.59.1"
 
   depends_on "node"
 
@@ -28,14 +28,32 @@ class Solo < Formula
             Target: #{target}
             Removing it to avoid conflicts with the Homebrew install.
           EOS
-          brew_bin_solo.unlink
+
+          if brew_bin_solo.dirname.writable?
+            begin
+              brew_bin_solo.unlink
+            rescue Errno::EPERM, Errno::EACCES => e
+              opoo "ATTENTION: Unable to remove #{brew_bin_solo}: #{e.message}"
+            end
+          else
+            opoo "ATTENTION: Cannot remove #{brew_bin_solo}; #{brew_bin_solo.dirname} is not writable."
+          end
         end
       else
         opoo <<~EOS
           ATTENTION: Found a non-Homebrew solo binary at #{brew_bin_solo}.
           Removing it to avoid conflicts with the Homebrew install.
         EOS
-        brew_bin_solo.delete
+
+        if brew_bin_solo.dirname.writable?
+          begin
+            brew_bin_solo.delete
+          rescue Errno::EPERM, Errno::EACCES => e
+            opoo "ATTENTION: Unable to remove #{brew_bin_solo}: #{e.message}"
+          end
+        else
+          opoo "ATTENTION: Cannot remove #{brew_bin_solo}; #{brew_bin_solo.dirname} is not writable."
+        end
       end
     end
 

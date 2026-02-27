@@ -28,14 +28,32 @@ class Solo < Formula
             Target: #{target}
             Removing it to avoid conflicts with the Homebrew install.
           EOS
-          brew_bin_solo.unlink
+
+          if brew_bin_solo.dirname.writable?
+            begin
+              brew_bin_solo.unlink
+            rescue Errno::EPERM, Errno::EACCES => e
+              opoo "ATTENTION: Unable to remove #{brew_bin_solo}: #{e.message}"
+            end
+          else
+            opoo "ATTENTION: Cannot remove #{brew_bin_solo}; #{brew_bin_solo.dirname} is not writable."
+          end
         end
       else
         opoo <<~EOS
           ATTENTION: Found a non-Homebrew solo binary at #{brew_bin_solo}.
           Removing it to avoid conflicts with the Homebrew install.
         EOS
-        brew_bin_solo.delete
+
+        if brew_bin_solo.dirname.writable?
+          begin
+            brew_bin_solo.delete
+          rescue Errno::EPERM, Errno::EACCES => e
+            opoo "ATTENTION: Unable to remove #{brew_bin_solo}: #{e.message}"
+          end
+        else
+          opoo "ATTENTION: Cannot remove #{brew_bin_solo}; #{brew_bin_solo.dirname} is not writable."
+        end
       end
     end
 
