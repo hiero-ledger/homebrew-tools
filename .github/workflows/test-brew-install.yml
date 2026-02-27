@@ -183,9 +183,20 @@ jobs:
           set -euo pipefail
           brew_prefix="$(brew --prefix)"
 
-          # First attempt should fail with actionable stale-symlink guidance.
-          brew reinstall --build-from-source hiero-ledger/tools/solo 2>&1 | tee brew-stale.log || true
-          if ! grep -Eq "Found an existing solo binary|Please remove it before installing|Could not symlink bin/solo|Target .*bin/solo.*already exists" brew-stale.log; then
+          # Depending on platform and permissions, stale symlink handling can either:
+          # 1) auto-recover on first install attempt, or
+          # 2) fail with actionable stale-symlink guidance.
+          set +e
+          brew reinstall --build-from-source hiero-ledger/tools/solo 2>&1 | tee brew-stale.log
+          rc=$?
+          set -e
+
+          if [ "$rc" -eq 0 ]; then
+            echo "First reinstall succeeded; stale symlink was auto-handled."
+            exit 0
+          fi
+
+          if ! grep -Eq "Found an existing solo binary|Please remove it before installing|Could not symlink bin/solo|Target .*bin/solo.*already exists|Found a non-Homebrew solo symlink" brew-stale.log; then
             echo "Expected stale symlink guidance not found in brew output."
             exit 1
           fi
