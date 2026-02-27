@@ -127,18 +127,22 @@ jobs:
         if: matrix.scenario == 'stale-brew-bin'
         run: |
           brew_prefix="$(brew --prefix)"
+          mkdir -p "${brew_prefix}/lib/node_modules/@hashgraph/solo/dist"
+          touch "${brew_prefix}/lib/node_modules/@hashgraph/solo/dist/solo.js"
           ln -sf "${brew_prefix}/lib/node_modules/@hashgraph/solo/dist/solo.js" "${brew_prefix}/bin/solo"
 
       - name: Create stale brew bin symlink with permission conflict
         if: matrix.scenario == 'stale-brew-bin-permission'
         run: |
           brew_prefix="$(brew --prefix)"
+          mkdir -p "${brew_prefix}/lib/node_modules/@hashgraph/solo/dist"
+          touch "${brew_prefix}/lib/node_modules/@hashgraph/solo/dist/solo.js"
           ln -sf "${brew_prefix}/lib/node_modules/@hashgraph/solo/dist/solo.js" "${brew_prefix}/bin/solo"
           if [ "${RUNNER_OS}" = "macOS" ]; then
-            sudo chflags uchg "${brew_prefix}/bin/solo"
+            sudo chflags -h uchg "${brew_prefix}/bin/solo"
           else
-            sudo chown root:root "${brew_prefix}/bin/solo"
-            sudo chmod 444 "${brew_prefix}/bin/solo"
+            # Make brew bin directory read-only so stale symlink removal fails predictably.
+            sudo chmod 555 "${brew_prefix}/bin"
           fi
 
       - name: Verify old solo works
@@ -187,10 +191,9 @@ jobs:
 
           # Restore and retry should succeed.
           if [ "${RUNNER_OS}" = "macOS" ]; then
-            sudo chflags nouchg "${brew_prefix}/bin/solo" || true
+            sudo chflags -h nouchg "${brew_prefix}/bin/solo" || true
           else
-            sudo chmod 644 "${brew_prefix}/bin/solo" || true
-            sudo chown "$USER":"$(id -gn)" "${brew_prefix}/bin/solo" || true
+            sudo chmod 755 "${brew_prefix}/bin" || true
           fi
           rm -f "${brew_prefix}/bin/solo" || true
           brew reinstall --build-from-source hiero-ledger/tools/solo
