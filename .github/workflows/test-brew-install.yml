@@ -196,7 +196,28 @@ jobs:
           brew reinstall --build-from-source hiero-ledger/tools/solo
 
       - name: Verify latest solo works
-        run: solo --version
+        run: |
+          set -euo pipefail
+          raw_output="$(solo --version)"
+          echo "${raw_output}"
+
+          if [ -n "${NEW_SOLO_VERSION}" ]; then
+            expected="${NEW_SOLO_VERSION}"
+          else
+            expected="$(grep -E '^[[:space:]]*version[[:space:]]+"' Formula/solo.rb | sed -E 's/^[[:space:]]*version[[:space:]]+"([^"]+)".*/\1/' | head -n 1)"
+          fi
+
+          actual="$(printf '%s\n' "${raw_output}" | sed -nE 's/^[[:space:]]*Version[[:space:]]*:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+).*$/\1/p' | head -n 1)"
+
+          if [ -z "${actual}" ]; then
+            echo "Failed to parse solo version from output."
+            exit 1
+          fi
+
+          if [ "${actual}" != "${expected}" ]; then
+            echo "Version mismatch: expected ${expected}, got ${actual}"
+            exit 1
+          fi
         if: matrix.scenario != 'npm-permission'
 
       - name: Verify npm permission error message

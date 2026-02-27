@@ -109,7 +109,22 @@ jobs:
         run: |
           set -euo pipefail
           brew install --build-from-source hiero-ledger/tools/solo
-          solo --version
+          raw_output="$(solo --version)"
+          echo "${raw_output}"
+
+          expected="$(grep -E '^[[:space:]]*version[[:space:]]+"' Formula/solo.rb | sed -E 's/^[[:space:]]*version[[:space:]]+"([^"]+)".*/\1/' | head -n 1)"
+          actual="$(printf '%s\n' "${raw_output}" | sed -nE 's/^[[:space:]]*Version[[:space:]]*:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+).*$/\1/p' | head -n 1)"
+
+          if [ -z "${actual}" ]; then
+            echo "Failed to parse solo version from output."
+            exit 1
+          fi
+
+          if [ "${actual}" != "${expected}" ]; then
+            echo "Version mismatch: expected ${expected}, got ${actual}"
+            exit 1
+          fi
+
           brew test hiero-ledger/tools/solo
 
       - name: Stage 4 - uninstall cleanup
