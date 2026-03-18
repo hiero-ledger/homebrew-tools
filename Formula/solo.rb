@@ -12,6 +12,10 @@ class Solo < Formula
     # Step 0: Validate environment prerequisites before modifying the system.
     odie "npm was not found in PATH; install Node.js first." if which("npm").nil?
 
+    # Derive the full brew install command from the formula's own tap/name so it stays accurate
+    # if the tap is ever renamed, and to avoid duplicating the string in every error message.
+    brew_install_cmd = tap ? "brew install #{tap.name}/#{name}" : "brew install hiero-ledger/tools/solo"
+
     # Step 1: Remove any non-Homebrew solo binary/symlink to avoid link conflicts.
     brew_bin_solo = HOMEBREW_PREFIX/"bin/solo"
     if brew_bin_solo.exist?
@@ -33,10 +37,24 @@ class Solo < Formula
             begin
               brew_bin_solo.unlink
             rescue Errno::EPERM, Errno::EACCES => e
-              opoo "ATTENTION: Unable to remove #{brew_bin_solo}: #{e.message}"
+              odie <<~EOS
+                ATTENTION: Unable to remove #{brew_bin_solo}: #{e.message}
+                Please remove it before installing:
+                  rm '#{brew_bin_solo}'
+                If you see a permissions error, try:
+                  sudo rm '#{brew_bin_solo}'
+                Then re-run: #{brew_install_cmd}
+              EOS
             end
           else
-            opoo "ATTENTION: Cannot remove #{brew_bin_solo}; #{brew_bin_solo.dirname} is not writable."
+            odie <<~EOS
+              ATTENTION: Cannot remove #{brew_bin_solo}; #{brew_bin_solo.dirname} is not writable.
+              Please remove it before installing:
+                rm '#{brew_bin_solo}'
+              If you see a permissions error, try:
+                sudo rm '#{brew_bin_solo}'
+              Then re-run: #{brew_install_cmd}
+            EOS
           end
         end
       else
@@ -49,10 +67,24 @@ class Solo < Formula
           begin
             brew_bin_solo.delete
           rescue Errno::EPERM, Errno::EACCES => e
-            opoo "ATTENTION: Unable to remove #{brew_bin_solo}: #{e.message}"
+            odie <<~EOS
+              ATTENTION: Unable to remove #{brew_bin_solo}: #{e.message}
+              Please remove it before installing:
+                rm '#{brew_bin_solo}'
+              If you see a permissions error, try:
+                sudo rm '#{brew_bin_solo}'
+              Then re-run: #{brew_install_cmd}
+            EOS
           end
         else
-          opoo "ATTENTION: Cannot remove #{brew_bin_solo}; #{brew_bin_solo.dirname} is not writable."
+          odie <<~EOS
+            ATTENTION: Cannot remove #{brew_bin_solo}; #{brew_bin_solo.dirname} is not writable.
+            Please remove it before installing:
+              rm '#{brew_bin_solo}'
+            If you see a permissions error, try:
+              sudo rm '#{brew_bin_solo}'
+            Then re-run: #{brew_install_cmd}
+          EOS
         end
       end
     end
