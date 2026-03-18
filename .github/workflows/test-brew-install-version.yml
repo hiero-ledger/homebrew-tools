@@ -1,0 +1,84 @@
+name: "Test Brew Install (Version)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      solo-version:
+        description: "Solo version to test (e.g. 0.63.0). Leave blank to test the current formula version."
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  test-brew-install-version:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - ubuntu-latest
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+      SOLO_VERSION: "${{ github.event.inputs.solo-version || '' }}"
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Homebrew
+        uses: Homebrew/actions/setup-homebrew@9ceb7934560eb61d131dde205a6c2d77b2e1529d # master
+
+      - name: Tap local formula
+        run: brew tap --custom-remote hiero-ledger/tools "$GITHUB_WORKSPACE"
+
+      - name: Determine formula name
+        id: formula
+        run: |
+          set -euo pipefail
+          current_version="$(grep -E '^[[:space:]]*version[[:space:]]+"' Formula/solo.rb \
+            | sed -E 's/^[[:space:]]*version[[:space:]]+"([^"]+)".*/\1/' \
+            | head -n 1)"
+
+          if [ -n "${SOLO_VERSION}" ] && [ "${SOLO_VERSION}" != "${current_version}" ]; then
+            echo "formula=hiero-ledger/tools/solo@${SOLO_VERSION}" >> "$GITHUB_OUTPUT"
+            echo "expected_version=${SOLO_VERSION}" >> "$GITHUB_OUTPUT"
+          else
+            echo "formula=hiero-ledger/tools/solo" >> "$GITHUB_OUTPUT"
+            echo "expected_version=${current_version}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install solo via brew
+        run: brew install --build-from-source ${{ steps.formula.outputs.formula }}
+
+      - name: Verify solo version
+        run: |
+          set -euo pipefail
+          raw_output="$(solo --version)"
+          echo "${raw_output}"
+
+          expected="${{ steps.formula.outputs.expected_version }}"
+          actual="$(printf '%s\n' "${raw_output}" | sed -nE 's/^[[:space:]]*Version[[:space:]]*:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+).*$/\1/p' | head -n 1)"
+
+          if [ -z "${actual}" ]; then
+            echo "Failed to parse solo version from output."
+            exit 1
+          fi
+
+          if [ "${actual}" != "${expected}" ]; then
+            echo "Version mismatch: expected ${expected}, got ${actual}"
+            exit 1
+          fi
+
+          echo "solo version ${actual} verified successfully."
+
+      - name: Brew test solo
+        run: brew test ${{ steps.formula.outputs.formula }}
