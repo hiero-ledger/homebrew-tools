@@ -212,7 +212,7 @@ jobs:
 
           # First attempt should fail early with actionable guidance when bin/solo cannot be removed.
           brew reinstall --build-from-source hiero-ledger/tools/solo 2>&1 | tee brew-stale-permission.log || true
-          if ! grep -Eq "Unable to remove .*bin/solo|Cannot remove .*bin/solo|directories are not writable by your user|/home/linuxbrew/.linuxbrew/bin" brew-stale-permission.log; then
+          if ! grep -Eq "Unable to remove .*bin/solo|Cannot remove .*bin/solo|Directory details:|Entry details:|directories are not writable by your user|/home/linuxbrew/.linuxbrew/bin" brew-stale-permission.log; then
             echo "Expected stale-symlink or preflight permission guidance not found in brew output."
             exit 1
           fi

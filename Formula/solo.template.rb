@@ -1,3 +1,5 @@
+require "etc"
+
 class Solo < Formula
   desc "An opinionated CLI tool to deploy and manage standalone test networks."
   homepage "https://github.com/hiero-ledger/solo"
@@ -7,6 +9,82 @@ class Solo < Formula
   version "__SOLO_VERSION__"
 
   depends_on "node"
+
+  # Returns true only for targets managed by Homebrew's own `solo` or versioned `solo@X`.
+  # This prevents us from deleting Homebrew-owned symlinks during conflict cleanup.
+  def homebrew_managed_solo_target?(target)
+    allow_prefixes = [
+      (HOMEBREW_PREFIX/"Cellar/solo").to_s,
+      (HOMEBREW_PREFIX/"Cellar/solo@").to_s,
+      (HOMEBREW_PREFIX/"opt/solo").to_s,
+      (HOMEBREW_PREFIX/"opt/solo@").to_s,
+    ]
+    allow_prefixes.any? { |prefix| target.start_with?(prefix) }
+  end
+
+  # Resolves a path target safely:
+  # - regular file: return the path itself
+  # - symlink with valid target: return realpath
+  # - dangling symlink: return readlink target instead of raising
+  # This keeps diagnostics actionable even when stale links are broken.
+  def resolve_target(path)
+    return path.to_s unless path.symlink?
+
+    path.realpath.to_s
+  rescue Errno::ENOENT
+    path.readlink.to_s
+  end
+
+  # Formats ownership and permission metadata for diagnostics.
+  # We include owner/group/mode because most install failures here are permission-related,
+  # and users need concrete data to fix local filesystem ownership issues.
+  def path_metadata(path)
+    stat = path.lstat
+    owner = begin
+      Etc.getpwuid(stat.uid).name
+    rescue ArgumentError
+      stat.uid.to_s
+    end
+    group = begin
+      Etc.getgrgid(stat.gid).name
+    rescue ArgumentError
+      stat.gid.to_s
+    end
+    mode = format("%03o", stat.mode & 0o777)
+    "#{path} owner=#{owner}:#{group} mode=#{mode}"
+  rescue Errno::ENOENT
+    "#{path} (missing)"
+  end
+
+  # User-facing guidance when we cannot even attempt deletion because the directory
+  # containing `bin/solo` is not writable by the current user.
+  def stale_entry_permission_guidance(brew_bin_solo, brew_install_cmd)
+    <<~EOS
+      ATTENTION: Cannot remove #{brew_bin_solo}; #{brew_bin_solo.dirname} is not writable by the current user.
+      Directory details: #{path_metadata(brew_bin_solo.dirname)}
+      Entry details: #{path_metadata(brew_bin_solo)}
+      Please remove it before installing:
+        rm '#{brew_bin_solo}'
+      If you see a permissions error, try:
+        sudo rm '#{brew_bin_solo}'
+      Then re-run: #{brew_install_cmd}
+    EOS
+  end
+
+  # User-facing guidance when deletion was attempted but failed (EPERM/EACCES).
+  # Includes both the Ruby error message and path metadata for quick triage.
+  def stale_entry_remove_failed_guidance(brew_bin_solo, brew_install_cmd, error)
+    <<~EOS
+      ATTENTION: Unable to remove #{brew_bin_solo}: #{error.message}
+      Directory details: #{path_metadata(brew_bin_solo.dirname)}
+      Entry details: #{path_metadata(brew_bin_solo)}
+      Please remove it before installing:
+        rm '#{brew_bin_solo}'
+      If you see a permissions error, try:
+        sudo rm '#{brew_bin_solo}'
+      Then re-run: #{brew_install_cmd}
+    EOS
+  end
 
   def install
     # Step 0: Validate environment prerequisites before modifying the system.
@@ -19,82 +97,41 @@ class Solo < Formula
     # Step 1: Remove any non-Homebrew solo binary/symlink to avoid link conflicts.
     brew_bin_solo = HOMEBREW_PREFIX/"bin/solo"
     if brew_bin_solo.exist?
-      if brew_bin_solo.symlink?
-        target = brew_bin_solo.realpath.to_s
-        allow_prefixes = [
-          (HOMEBREW_PREFIX/"Cellar/solo").to_s,
-          (HOMEBREW_PREFIX/"opt/solo").to_s,
-        ]
-
-        unless allow_prefixes.any? { |prefix| target.start_with?(prefix) }
-          opoo <<~EOS
-            ATTENTION: Found a non-Homebrew solo symlink at #{brew_bin_solo}.
-            Target: #{target}
-            Removing it to avoid conflicts with the Homebrew install.
-          EOS
-
-          if brew_bin_solo.dirname.writable?
-            begin
-              brew_bin_solo.unlink
-            rescue Errno::EPERM, Errno::EACCES => e
-              odie <<~EOS
-                ATTENTION: Unable to remove #{brew_bin_solo}: #{e.message}
-                Please remove it before installing:
-                  rm '#{brew_bin_solo}'
-                If you see a permissions error, try:
-                  sudo rm '#{brew_bin_solo}'
-                Then re-run: #{brew_install_cmd}
-              EOS
-            end
-          else
-            odie <<~EOS
-              ATTENTION: Cannot remove #{brew_bin_solo}; #{brew_bin_solo.dirname} is not writable.
-              Please remove it before installing:
-                rm '#{brew_bin_solo}'
-              If you see a permissions error, try:
-                sudo rm '#{brew_bin_solo}'
-              Then re-run: #{brew_install_cmd}
-            EOS
-          end
-        end
-      else
+      # Resolve the effective target (works for both valid and dangling symlinks).
+      target = resolve_target(brew_bin_solo)
+      unless homebrew_managed_solo_target?(target)
+        entry_type = brew_bin_solo.symlink? ? "symlink" : "binary"
         opoo <<~EOS
-          ATTENTION: Found a non-Homebrew solo binary at #{brew_bin_solo}.
+          ATTENTION: Found a non-Homebrew solo #{entry_type} at #{brew_bin_solo}.
+          Target: #{target}
           Removing it to avoid conflicts with the Homebrew install.
         EOS
 
-        if brew_bin_solo.dirname.writable?
-          begin
+        # Fail early with explicit guidance if we do not have directory-level write permissions.
+        odie stale_entry_permission_guidance(brew_bin_solo, brew_install_cmd) unless brew_bin_solo.dirname.writable?
+
+        begin
+          # Remove stale symlink or stale regular file using the appropriate operation.
+          if brew_bin_solo.symlink?
+            brew_bin_solo.unlink
+          else
             brew_bin_solo.delete
-          rescue Errno::EPERM, Errno::EACCES => e
-            odie <<~EOS
-              ATTENTION: Unable to remove #{brew_bin_solo}: #{e.message}
-              Please remove it before installing:
-                rm '#{brew_bin_solo}'
-              If you see a permissions error, try:
-                sudo rm '#{brew_bin_solo}'
-              Then re-run: #{brew_install_cmd}
-            EOS
           end
-        else
-          odie <<~EOS
-            ATTENTION: Cannot remove #{brew_bin_solo}; #{brew_bin_solo.dirname} is not writable.
-            Please remove it before installing:
-              rm '#{brew_bin_solo}'
-            If you see a permissions error, try:
-              sudo rm '#{brew_bin_solo}'
-            Then re-run: #{brew_install_cmd}
-          EOS
+        rescue Errno::EPERM, Errno::EACCES => e
+          odie stale_entry_remove_failed_guidance(brew_bin_solo, brew_install_cmd, e)
         end
       end
     end
 
     # Step 2: Detect and remove global npm links/installations that conflict with Homebrew.
     npm_packages = ["@hiero-ledger/solo", "@hashgraph/solo"]
+    # Ignore external NPM_CONFIG_PREFIX so we inspect the effective global npm root
+    # used by the current runtime environment.
     npm_env = {"NPM_CONFIG_PREFIX" => nil}
     npm_root = Utils.popen_read(npm_env, "npm", "root", "-g").strip
     brew_prefix_root = (HOMEBREW_PREFIX/"lib/node_modules").to_s
 
+    # Pass A: remove global npm symlinks (`npm link`) for supported package names.
     npm_packages.each do |pkg|
       pkg_scope, pkg_name = pkg.split("/")
       pkg_path = File.join(npm_root, pkg_scope, pkg_name)
@@ -128,6 +165,7 @@ class Solo < Formula
       end
     end
 
+    # Pass B: remove global npm physical installs, both in npm root and Homebrew prefix.
     npm_packages.each do |pkg|
       pkg_scope, pkg_name = pkg.split("/")
       pkg_path = File.join(npm_root, pkg_scope, pkg_name)
@@ -178,16 +216,12 @@ class Solo < Formula
 
   def post_install
     # Step 4: Guard against any lingering non-Homebrew solo binary after install.
+    # This catches edge cases where an external process recreates the stale entry during install.
     brew_bin_solo = HOMEBREW_PREFIX/"bin/solo"
     return unless brew_bin_solo.exist?
 
-    target = brew_bin_solo.symlink? ? brew_bin_solo.realpath.to_s : brew_bin_solo.to_s
-    allow_prefixes = [
-      (HOMEBREW_PREFIX/"Cellar/solo").to_s,
-      (HOMEBREW_PREFIX/"opt/solo").to_s,
-    ]
-
-    return if allow_prefixes.any? { |prefix| target.start_with?(prefix) }
+    target = resolve_target(brew_bin_solo)
+    return if homebrew_managed_solo_target?(target)
 
     odie <<~EOS
       ATTENTION: Found an existing solo binary at #{brew_bin_solo}.
