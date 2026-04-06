@@ -172,7 +172,35 @@ class Solo < Formula
     end
 
     # Step 3: Install the Homebrew-managed npm package and expose the binary.
-    system "npm", "install", *std_npm_args
+    # Export system CA certificates so npm can trust enterprise/corporate CA certificates
+    # used by SSL inspection proxies (e.g., Zscaler, Cisco Umbrella).
+    npm_install_env = {}
+    if OS.mac?
+      ca_bundle = buildpath/"ca-bundle.pem"
+      [
+        "/System/Library/Keychains/SystemRootCertificates.keychain",
+        "/Library/Keychains/System.keychain",
+      ].each do |kc|
+        next unless File.exist?(kc)
+
+        pem = Utils.popen_read("/usr/bin/security", "find-certificate", "-a", "-p", kc)
+        File.open(ca_bundle, "a") { |f| f.write(pem) } unless pem.empty?
+      end
+      npm_install_env["NODE_EXTRA_CA_CERTS"] = ca_bundle.to_s if ca_bundle.exist?
+    elsif OS.linux?
+      linux_ca_paths = [
+        "/etc/ssl/certs/ca-certificates.crt",
+        "/etc/pki/tls/certs/ca-bundle.crt",
+        "/etc/ssl/ca-bundle.pem",
+        "/etc/pki/tls/cacert.pem",
+      ]
+      ca_path = linux_ca_paths.find { |p| File.exist?(p) }
+      npm_install_env["NODE_EXTRA_CA_CERTS"] = ca_path if ca_path
+    end
+
+    with_env(npm_install_env) do
+      system "npm", "install", *std_npm_args
+    end
     bin.install_symlink Dir["#{libexec}/bin/*"]
   end
 
