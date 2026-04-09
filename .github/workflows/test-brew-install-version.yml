@@ -8,6 +8,11 @@ on:
         type: string
         required: false
         default: ""
+  push:
+    branches:
+      - main
+    paths:
+      - Formula/solo.rb
 
 permissions:
   contents: read
@@ -82,3 +87,18 @@ jobs:
 
       - name: Brew test solo
         run: brew test ${{ steps.formula.outputs.formula }}
+
+      - name: Send Slack Notification on Failure
+        if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' && !cancelled() && failure() }}
+        uses: rtCamp/action-slack-notify@e31e87e03dd19038e411e38ae27cbad084a90661 # v2.3.3
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
+          SLACK_COLOR: danger
+          SLACK_TITLE: Brew Install Version Test Failed
+          SLACK_MESSAGE: |
+            *Workflow:* `${{ github.workflow }}`
+            *Branch:* `${{ github.ref_name }}`
+            *Commit:* ${{ github.sha }}
+            *Expected Version:* `${{ steps.formula.outputs.expected_version }}`
+            :link: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Job Logs>
+          SLACK_FOOTER: ${{ github.workflow }}
