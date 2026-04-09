@@ -50,25 +50,58 @@ jobs:
 
       - name: Commit Version Changes
         id: git-commit
-        uses: EndBug/add-and-commit@a94899bca583c204427a224a7af87c02f9b325d5 # v9.1.4
-        with:
-          author_name: ${{ steps.gpg_key.outputs.name }}
-          author_email: ${{ steps.gpg_key.outputs.email }}
-          committer_name: ${{ steps.gpg_key.outputs.name }}
-          committer_email: ${{ steps.gpg_key.outputs.email }}
-          commit: --signoff --gpg-sign
-          message: "chore: bump solo Homebrew formula to ${{ inputs.version || github.event.inputs.version }}"
-          new_branch: chore/bump-solo-homebrew-${{ inputs.version || github.event.inputs.version }}
+        env:
+          VERSION: ${{ inputs.version || github.event.inputs.version }}
+          GPG_KEYID: ${{ steps.gpg_key.outputs.keyid }}
+          GIT_AUTHOR_NAME: ${{ steps.gpg_key.outputs.name }}
+          GIT_AUTHOR_EMAIL: ${{ steps.gpg_key.outputs.email }}
+          GIT_COMMITTER_NAME: ${{ steps.gpg_key.outputs.name }}
+          GIT_COMMITTER_EMAIL: ${{ steps.gpg_key.outputs.email }}
+        run: |
+          set -euo pipefail
+          BRANCH="chore/bump-solo-homebrew-${VERSION}"
+          git checkout -b "${BRANCH}"
+
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "committed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git add -A
+          git commit --signoff --gpg-sign="${GPG_KEYID}" -m "chore: bump solo Homebrew formula to ${VERSION}"
+          git push --set-upstream origin "${BRANCH}"
+
+          echo "committed=true" >> "$GITHUB_OUTPUT"
+          echo "branch=${BRANCH}" >> "$GITHUB_OUTPUT"
+          echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Verify Commit Signature On GitHub
+        if: steps.git-commit.outputs.committed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+          COMMIT_SHA: ${{ steps.git-commit.outputs.commit_sha }}
+        run: |
+          set -euo pipefail
+          VERIFIED=$(gh api "repos/${{ github.repository }}/commits/${COMMIT_SHA}" --jq '.commit.verification.verified')
+          REASON=$(gh api "repos/${{ github.repository }}/commits/${COMMIT_SHA}" --jq '.commit.verification.reason')
+
+          if [ "${VERIFIED}" != "true" ]; then
+            echo "Commit ${COMMIT_SHA} is not verified on GitHub (reason: ${REASON})."
+            exit 1
+          fi
+
+          echo "Commit ${COMMIT_SHA} is verified on GitHub."
 
       - name: Create pull request
         if: steps.git-commit.outputs.committed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+          VERSION: ${{ inputs.version || github.event.inputs.version }}
         run: |
           PR_BODY="This pull request was created automatically by the **Update Homebrew Solo Formula** workflow.
-          Requested version: \`${{ inputs.version || github.event.inputs.version }}\`."
+          Requested version: \`${VERSION}\`."
           gh pr create \
             --base main \
-            --head "chore/bump-solo-homebrew-${{ inputs.version || github.event.inputs.version }}" \
-            --title "chore: bump solo Homebrew formula to ${{ inputs.version || github.event.inputs.version }}" \
+            --head "${{ steps.git-commit.outputs.branch }}" \
+            --title "chore: bump solo Homebrew formula to ${VERSION}" \
             --body "${PR_BODY}"
