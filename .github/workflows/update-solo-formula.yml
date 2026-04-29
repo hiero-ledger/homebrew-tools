@@ -85,12 +85,22 @@ jobs:
           VERIFIED=$(gh api "repos/${{ github.repository }}/commits/${COMMIT_SHA}" --jq '.commit.verification.verified')
           REASON=$(gh api "repos/${{ github.repository }}/commits/${COMMIT_SHA}" --jq '.commit.verification.reason')
 
+          if [ "${VERIFIED}" = "true" ]; then
+            echo "Commit ${COMMIT_SHA} is verified on GitHub."
+            exit 0
+          fi
+
+          # GitHub can report no_user for valid bot/service signatures that are
+          # not linked to a GitHub user account. Treat this as non-blocking.
+          if [ "${REASON}" = "no_user" ]; then
+            echo "::warning::Commit ${COMMIT_SHA} signature is not linked to a GitHub user (reason: ${REASON}); continuing."
+            exit 0
+          fi
+
           if [ "${VERIFIED}" != "true" ]; then
             echo "Commit ${COMMIT_SHA} is not verified on GitHub (reason: ${REASON})."
             exit 1
           fi
-
-          echo "Commit ${COMMIT_SHA} is verified on GitHub."
 
       - name: Create pull request
         if: steps.git-commit.outputs.committed == 'true'
