@@ -53,9 +53,9 @@ jobs:
         uses: EndBug/add-and-commit@a94899bca583c204427a224a7af87c02f9b325d5 # v9.1.4
         with:
           author_name: ${{ steps.gpg_key.outputs.name }}
-          author_email: ${{ steps.gpg_key.outputs.email }}
+          author_email: eng-automation@hashgraph.com
           committer_name: ${{ steps.gpg_key.outputs.name }}
-          committer_email: ${{ steps.gpg_key.outputs.email }}
+          committer_email: eng-automation@hashgraph.com
           commit: --signoff --gpg-sign
           message: "chore: bump solo Homebrew formula to ${{ inputs.version || github.event.inputs.version }}"
           new_branch: chore/bump-solo-homebrew-${{ inputs.version || github.event.inputs.version }}
