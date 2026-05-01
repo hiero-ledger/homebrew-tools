@@ -50,7 +50,7 @@ jobs:
 
       - name: Commit Version Changes
         id: git-commit
-        uses: EndBug/add-and-commit@a94899bca583c204427a224a7af87c02f9b325d5 # v9.1.4
+        uses: step-security/add-and-commit@v9
         with:
           author_name: ${{ secrets.GIT_USER_NAME || steps.gpg_key.outputs.name }}
           author_email: ${{ secrets.GIT_USER_EMAIL || steps.gpg_key.outputs.email }}
