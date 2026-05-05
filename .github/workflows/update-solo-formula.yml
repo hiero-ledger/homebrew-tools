@@ -52,10 +52,10 @@ jobs:
         id: git-commit
         uses: step-security/add-and-commit@c02fc48d1a9e30e6955e3c170b06c51ceb2d26df # v9.1.5
         with:
-          author_name: ${{ secrets.GIT_USER_NAME || steps.gpg_key.outputs.name }}
-          author_email: ${{ secrets.GIT_USER_EMAIL || steps.gpg_key.outputs.email }}
-          committer_name: ${{ secrets.GIT_USER_NAME || steps.gpg_key.outputs.name }}
-          committer_email: ${{ secrets.GIT_USER_EMAIL || steps.gpg_key.outputs.email }}
+          author_name: ${{ vars.GIT_USER_NAME || steps.gpg_key.outputs.name }}
+          author_email: ${{ vars.GIT_USER_EMAIL || steps.gpg_key.outputs.email }}
+          committer_name: ${{ vars.GIT_USER_NAME || steps.gpg_key.outputs.name }}
+          committer_email: ${{ vars.GIT_USER_EMAIL || steps.gpg_key.outputs.email }}
           commit: --signoff --gpg-sign
           message: "chore: bump solo Homebrew formula to ${{ inputs.version || github.event.inputs.version }}"
           new_branch: chore/bump-solo-homebrew-${{ inputs.version || github.event.inputs.version }}
