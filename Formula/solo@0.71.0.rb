@@ -1,10 +1,10 @@
-class Solo < Formula
+class SoloAT0710 < Formula
   desc "An opinionated CLI tool to deploy and manage standalone test networks."
   homepage "https://github.com/hiero-ledger/solo"
 
-  url "https://registry.npmjs.org/@hashgraph/solo/-/solo-0.72.0.tgz"
-  sha256 "6b4d1cd6645448154ecd916ab14ff5e1434d7df349ae53d18761942413e5ded3"
-  version "0.72.0"
+  url "https://registry.npmjs.org/@hashgraph/solo/-/solo-0.71.0.tgz"
+  sha256 "894a701fa221db40bda81a92aa48bd20caeb3a61b7183264797a0e8339ea0d8a"
+  version "0.71.0"
 
   depends_on "node"
 
