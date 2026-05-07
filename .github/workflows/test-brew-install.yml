@@ -186,7 +186,7 @@ jobs:
         continue-on-error: ${{ matrix.scenario == 'npm-permission' }}
 
       - name: Verify stale symlink handling and retry install
-        if: matrix.scenario == 'stale-brew-bin' || matrix.scenario == 'stale-broken-brew-bin'
+        if: startsWith(matrix.scenario, 'stale-brew-bin')
         run: |
           set -euo pipefail
           brew_prefix="$(brew --prefix)"
