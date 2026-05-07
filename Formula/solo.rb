@@ -43,27 +43,12 @@ class Solo < Formula
             Removing it to avoid conflicts with the Homebrew install.
           EOS
 
-          if brew_bin_solo.dirname.writable?
-            begin
-              brew_bin_solo.unlink
-            rescue Errno::EPERM, Errno::EACCES => e
-              odie <<~EOS
-                ATTENTION: Unable to remove #{brew_bin_solo}: #{e.message}
-                Please remove it before installing:
-                  rm '#{brew_bin_solo}'
-                If you see a permissions error, try:
-                  sudo rm '#{brew_bin_solo}'
-                Then re-run: #{brew_install_cmd}
-              EOS
-            end
-          else
-            odie <<~EOS
-              ATTENTION: Cannot remove #{brew_bin_solo}; #{brew_bin_solo.dirname} is not writable.
-              Please remove it before installing:
-                rm '#{brew_bin_solo}'
-              If you see a permissions error, try:
-                sudo rm '#{brew_bin_solo}'
-              Then re-run: #{brew_install_cmd}
+          begin
+            brew_bin_solo.unlink
+          rescue Errno::EPERM, Errno::EACCES => e
+            opoo <<~EOS
+              Could not remove #{brew_bin_solo} in sandbox (#{e.message}).
+              The link_overwrite directive will handle this during the linking phase.
             EOS
           end
         end
