@@ -7,6 +7,7 @@ class Solo < Formula
   version "0.72.0"
 
   depends_on "node"
+  link_overwrite "bin/solo"
 
   def install
     # Step 0: Validate environment prerequisites before modifying the system.
