@@ -18,17 +18,23 @@ class Solo < Formula
 
     # Step 1: Remove any non-Homebrew solo binary/symlink to avoid link conflicts.
     brew_bin_solo = HOMEBREW_PREFIX/"bin/solo"
-    if brew_bin_solo.exist?
+    if brew_bin_solo.exist? || brew_bin_solo.symlink?
       if brew_bin_solo.symlink?
-        target = brew_bin_solo.realpath.to_s
+        stale_symlink = false
+        target = begin
+          brew_bin_solo.realpath.to_s
+        rescue Errno::ENOENT
+          stale_symlink = true
+          brew_bin_solo.readlink.to_s
+        end
         allow_prefixes = [
           (HOMEBREW_PREFIX/"Cellar/solo").to_s,
           (HOMEBREW_PREFIX/"opt/solo").to_s,
         ]
 
-        unless allow_prefixes.any? { |prefix| target.start_with?(prefix) }
+        unless !stale_symlink && allow_prefixes.any? { |prefix| target.start_with?(prefix) }
           opoo <<~EOS
-            ATTENTION: Found a non-Homebrew solo symlink at #{brew_bin_solo}.
+            ATTENTION: Found a stale or non-Homebrew solo symlink at #{brew_bin_solo}.
             Target: #{target}
             Removing it to avoid conflicts with the Homebrew install.
           EOS
@@ -207,9 +213,17 @@ class Solo < Formula
   def post_install
     # Step 4: Guard against any lingering non-Homebrew solo binary after install.
     brew_bin_solo = HOMEBREW_PREFIX/"bin/solo"
-    return unless brew_bin_solo.exist?
+    return unless brew_bin_solo.exist? || brew_bin_solo.symlink?
 
-    target = brew_bin_solo.symlink? ? brew_bin_solo.realpath.to_s : brew_bin_solo.to_s
+    target = if brew_bin_solo.symlink?
+      begin
+        brew_bin_solo.realpath.to_s
+      rescue Errno::ENOENT
+        brew_bin_solo.readlink.to_s
+      end
+    else
+      brew_bin_solo.to_s
+    end
     allow_prefixes = [
       (HOMEBREW_PREFIX/"Cellar/solo").to_s,
       (HOMEBREW_PREFIX/"opt/solo").to_s,
