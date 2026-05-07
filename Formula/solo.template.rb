@@ -19,6 +19,7 @@ class Solo < Formula
 
     # Step 1: Remove any non-Homebrew solo binary/symlink to avoid link conflicts.
     brew_bin_solo = HOMEBREW_PREFIX/"bin/solo"
+    # Check both exist? and symlink? because exist? is false for broken symlinks.
     if brew_bin_solo.exist? || brew_bin_solo.symlink?
       if brew_bin_solo.symlink?
         stale_symlink = false

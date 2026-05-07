@@ -154,7 +154,8 @@ jobs:
 
       - name: Verify old solo works
         run: |
-          if [ "${{ matrix.scenario }}" = "stale-brew-bin" ] || [ "${{ matrix.scenario }}" = "stale-broken-brew-bin" ] || [ "${{ matrix.scenario }}" = "stale-brew-bin-permission" ]; then
+          scenario="${{ matrix.scenario }}"
+          if [[ "$scenario" == stale-brew-bin* ]]; then
             echo "Skipping old solo verification for stale-brew-bin scenarios."
             exit 0
           fi
