@@ -237,10 +237,11 @@ jobs:
           # Restore permissions and retry should succeed.
           if [ "${RUNNER_OS}" = "macOS" ]; then
             sudo chflags -h nouchg "${brew_prefix}/bin/solo" || true
+            sudo rm -f "${brew_prefix}/bin/solo" || true
           else
             sudo chmod 755 "${brew_prefix}/bin" || true
+            rm -f "${brew_prefix}/bin/solo" || true
           fi
-          rm -f "${brew_prefix}/bin/solo" || true
           brew install --build-from-source hiero-ledger/tools/solo
 
 
