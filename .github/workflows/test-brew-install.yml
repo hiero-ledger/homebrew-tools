@@ -236,12 +236,20 @@ jobs:
 
           # Restore permissions and retry should succeed.
           if [ "${RUNNER_OS}" = "macOS" ]; then
-            sudo chflags -h nouchg "${brew_prefix}/bin/solo" || true
-            sudo rm -f "${brew_prefix}/bin/solo" || true
+            sudo chflags -h nouchg "${brew_prefix}/bin/solo"
+            sudo rm -f "${brew_prefix}/bin/solo"
           else
-            sudo chmod 755 "${brew_prefix}/bin" || true
-            rm -f "${brew_prefix}/bin/solo" || true
+            sudo chmod 755 "${brew_prefix}/bin"
+            rm -f "${brew_prefix}/bin/solo"
           fi
+
+          # Verify symlink was removed
+          if [ -e "${brew_prefix}/bin/solo" ] || [ -L "${brew_prefix}/bin/solo" ]; then
+            echo "ERROR: Failed to remove ${brew_prefix}/bin/solo before retry"
+            ls -la "${brew_prefix}/bin/solo" || true
+            exit 1
+          fi
+
           brew install --build-from-source hiero-ledger/tools/solo
 
 
