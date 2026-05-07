@@ -250,6 +250,10 @@ jobs:
             exit 1
           fi
 
+          # Uninstall partially-installed solo from first attempt
+          brew uninstall --force --ignore-dependencies hiero-ledger/tools/solo 2>/dev/null || true
+
+          # Retry install should now succeed
           brew install --build-from-source hiero-ledger/tools/solo
 
 
