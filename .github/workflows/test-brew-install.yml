@@ -221,7 +221,7 @@ jobs:
           # First attempt should fail with permission error during linking phase.
           set +e
           brew install --build-from-source hiero-ledger/tools/solo 2>&1 | tee brew-stale-permission.log
-          install_rc=$?
+          install_rc=${PIPESTATUS[0]}
           set -e
 
           if [ "$install_rc" -eq 0 ]; then
