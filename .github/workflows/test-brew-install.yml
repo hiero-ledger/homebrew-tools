@@ -186,7 +186,7 @@ jobs:
         continue-on-error: ${{ matrix.scenario == 'npm-permission' }}
 
       - name: Verify stale symlink handling and retry install
-        if: startsWith(matrix.scenario, 'stale-brew-bin') && matrix.scenario != 'stale-brew-bin-permission'
+        if: (matrix.scenario == 'stale-brew-bin' || matrix.scenario == 'stale-broken-brew-bin')
         run: |
           set -euo pipefail
           brew_prefix="$(brew --prefix)"
@@ -218,21 +218,31 @@ jobs:
         run: |
           brew_prefix="$(brew --prefix)"
 
-          # First attempt should fail early with actionable guidance when bin/solo cannot be removed.
-          brew reinstall --build-from-source hiero-ledger/tools/solo 2>&1 | tee brew-stale-permission.log || true
-          if ! grep -Eq "Unable to remove .*bin/solo|Cannot remove .*bin/solo|directories are not writable by your user|/home/linuxbrew/.linuxbrew/bin" brew-stale-permission.log; then
-            echo "Expected stale-symlink or preflight permission guidance not found in brew output."
+          # First attempt should fail with permission error during linking phase.
+          set +e
+          brew install --build-from-source hiero-ledger/tools/solo 2>&1 | tee brew-stale-permission.log
+          install_rc=$?
+          set -e
+
+          if [ "$install_rc" -eq 0 ]; then
+            echo "Expected install to fail due to permission conflict, but it succeeded."
             exit 1
           fi
 
-          # Restore and retry should succeed.
+          if ! grep -Eq "Operation not permitted|Unable to remove .*bin/solo|Cannot remove .*bin/solo|directories are not writable by your user|/home/linuxbrew/.linuxbrew/bin" brew-stale-permission.log; then
+            echo "Expected permission error not found in brew output."
+            exit 1
+          fi
+
+          # Restore permissions and retry should succeed.
           if [ "${RUNNER_OS}" = "macOS" ]; then
             sudo chflags -h nouchg "${brew_prefix}/bin/solo" || true
           else
             sudo chmod 755 "${brew_prefix}/bin" || true
           fi
           rm -f "${brew_prefix}/bin/solo" || true
-          brew reinstall --build-from-source hiero-ledger/tools/solo
+          brew install --build-from-source hiero-ledger/tools/solo
+
 
       - name: Verify latest solo works
         run: |
