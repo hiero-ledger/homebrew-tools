@@ -31,8 +31,10 @@ class Solo < Formula
           (HOMEBREW_PREFIX/"Cellar/solo").to_s,
           (HOMEBREW_PREFIX/"opt/solo").to_s,
         ]
+        managed_by_homebrew = allow_prefixes.any? { |prefix| target.start_with?(prefix) }
+        should_remove_symlink = stale_symlink || !managed_by_homebrew
 
-        if stale_symlink || allow_prefixes.none? { |prefix| target.start_with?(prefix) }
+        if should_remove_symlink
           opoo <<~EOS
             ATTENTION: Found a stale or non-Homebrew solo symlink at #{brew_bin_solo}.
             Target: #{target}
