@@ -43,6 +43,7 @@ jobs:
       HOMEBREW_NO_INSTALL_CLEANUP: "1"
       OLD_SOLO_VERSION: "${{ github.event.inputs.old-solo-version || '0.53.1' }}"
       NEW_SOLO_VERSION: "${{ github.event.inputs.new-solo-version || '' }}"
+      ASSERT_STEP2_PROMPT: "1"
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
@@ -168,6 +169,7 @@ jobs:
       - name: Install latest solo via brew
         if: matrix.scenario != 'npm-permission' && matrix.scenario != 'stale-brew-bin' && matrix.scenario != 'stale-broken-brew-bin' && matrix.scenario != 'stale-brew-bin-permission'
         run: |
+          set -euo pipefail
           if [ "${{ matrix.scenario }}" = "npm" ] || [ "${{ matrix.scenario }}" = "npm-link" ]; then
             brew_prefix="$(brew --prefix)"
             sudo chown -R "$USER":"$(id -gn)" "${brew_prefix}/lib/node_modules" 2>/dev/null || true
@@ -178,10 +180,10 @@ jobs:
           fi
           brew unlink solo || true
           if [ -n "${NEW_SOLO_VERSION}" ]; then
-            brew reinstall --build-from-source hiero-ledger/tools/solo@${NEW_SOLO_VERSION}
+            brew reinstall --build-from-source hiero-ledger/tools/solo@${NEW_SOLO_VERSION} 2>&1 | tee brew-install.log
             brew link --overwrite solo@${NEW_SOLO_VERSION} || true
           else
-            brew reinstall --build-from-source hiero-ledger/tools/solo
+            brew reinstall --build-from-source hiero-ledger/tools/solo 2>&1 | tee brew-install.log
           fi
         continue-on-error: ${{ matrix.scenario == 'npm-permission' }}
 
@@ -301,6 +303,25 @@ jobs:
               exit 1
             fi
           done
+
+      - name: Verify Step 2 removal prompt in brew logs
+        if: matrix.scenario == 'npm' && env.ASSERT_STEP2_PROMPT == '1'
+        run: |
+          set -euo pipefail
+          if ! grep -Eq "ATTENTION: Will remove existing solo installation\." brew-install.log; then
+            echo "Missing Step 2 removal prompt in brew output."
+            exit 1
+          fi
+
+          if ! grep -Eq "Path:[[:space:]]*/.*/solo" brew-install.log; then
+            echo "Missing Step 2 path line in brew output."
+            exit 1
+          fi
+
+          if ! grep -Eq "Version to remove:[[:space:]]*" brew-install.log; then
+            echo "Missing Step 2 version line in brew output."
+            exit 1
+          fi
 
       - name: Verify npm permission error message
         if: matrix.scenario == 'npm-permission'
