@@ -398,22 +398,17 @@ jobs:
             exit 1
           fi
 
-      - name: Verify nvm guidance prompt in brew logs
+      - name: Verify nvm shadow warning in brew logs
         if: matrix.scenario == 'nvm' && env.ASSERT_STEP2_PROMPT == '1'
         run: |
           set -euo pipefail
-          if ! grep -Eq "ATTENTION: Found existing nvm-managed solo installation\\." brew-install.log; then
-            echo "Missing nvm guidance prompt in brew output."
+          if ! grep -Eq "shadowed by .*\\.nvm/.*/bin/solo" brew-install.log; then
+            echo "Missing nvm shadow warning in brew output."
             exit 1
           fi
 
-          if ! grep -Eq "Path:[[:space:]]*.*\\.nvm/.*/bin/solo" brew-install.log; then
-            echo "Missing nvm path line in brew output."
-            exit 1
-          fi
-
-          if ! grep -Eq "Version detected:[[:space:]]*" brew-install.log; then
-            echo "Missing nvm version line in brew output."
+          if ! grep -Eq "Running these by name will not invoke the version provided by Homebrew\\." brew-install.log; then
+            echo "Missing nvm shadow guidance detail in brew output."
             exit 1
           fi
 
