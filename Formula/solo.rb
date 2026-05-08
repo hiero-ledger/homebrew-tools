@@ -310,6 +310,17 @@ class Solo < Formula
     EOS
   end
 
+  def caveats
+    <<~EOS
+      If `solo` still resolves to an old path after install, your shell may be using a cached command path.
+      Refresh your shell command cache:
+        hash -r
+      Then verify:
+        command -v solo
+        solo --version
+    EOS
+  end
+
   private
 
   def detect_solo_version_at(path)
