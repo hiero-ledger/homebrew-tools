@@ -282,6 +282,26 @@ jobs:
           fi
         if: matrix.scenario != 'npm-permission'
 
+      - name: Verify npm install was overwritten by brew
+        if: matrix.scenario == 'npm'
+        run: |
+          set -euo pipefail
+          brew_prefix="$(brew --prefix)"
+          active_solo="$(command -v solo)"
+
+          if [ "${active_solo}" != "${brew_prefix}/bin/solo" ]; then
+            echo "Expected active solo to be ${brew_prefix}/bin/solo, got ${active_solo}"
+            exit 1
+          fi
+
+          npm_root="$(npm root -g)"
+          for pkg in "@hashgraph/solo" "@hiero-ledger/solo"; do
+            if [ -e "${npm_root}/${pkg}" ] && [ ! -L "${npm_root}/${pkg}" ]; then
+              echo "Expected ${pkg} to be removed from npm global root (${npm_root}), but it still exists."
+              exit 1
+            fi
+          done
+
       - name: Verify npm permission error message
         if: matrix.scenario == 'npm-permission'
         run: |

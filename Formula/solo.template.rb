@@ -37,9 +37,12 @@ class Solo < Formula
         should_remove_symlink = stale_symlink || !managed_by_homebrew
 
         if should_remove_symlink
+          old_version = detect_solo_version_at(target)
           opoo <<~EOS
-            ATTENTION: Found a stale or non-Homebrew solo symlink at #{brew_bin_solo}.
+            ATTENTION: Will remove existing solo installation.
+            Path: #{brew_bin_solo}
             Target: #{target}
+            Version to remove: #{old_version}
             Removing it to avoid conflicts with the Homebrew install.
           EOS
 
@@ -53,8 +56,11 @@ class Solo < Formula
           end
         end
       else
+        old_version = detect_solo_version_at(brew_bin_solo.to_s)
         opoo <<~EOS
-          ATTENTION: Found a non-Homebrew solo binary at #{brew_bin_solo}.
+          ATTENTION: Will remove existing solo installation.
+          Path: #{brew_bin_solo}
+          Version to remove: #{old_version}
           Removing it to avoid conflicts with the Homebrew install.
         EOS
 
@@ -84,7 +90,55 @@ class Solo < Formula
       end
     end
 
-    # Step 2: Detect and remove global npm links/installations that conflict with Homebrew.
+    # Step 2: Find and remove ALL solo binaries in PATH (npm global, nvm, custom prefixes, etc.).
+    solo_binaries_in_path = `which -a solo 2>/dev/null`.strip.split("\n").reject(&:empty?)
+    brew_solo_path = (HOMEBREW_PREFIX/"bin/solo").to_s
+
+    solo_binaries_in_path.each do |solo_path|
+      next if solo_path == brew_solo_path
+      next if solo_path.start_with?((HOMEBREW_PREFIX/"Cellar/solo").to_s)
+      next if solo_path.start_with?((HOMEBREW_PREFIX/"opt/solo").to_s)
+
+      old_version = detect_solo_version_at(solo_path)
+      opoo <<~EOS
+        ATTENTION: Will remove existing solo installation.
+        Path: #{solo_path}
+        Version to remove: #{old_version}
+        Attempting to remove it to avoid PATH conflicts.
+      EOS
+
+      # Determine if it's an npm installation by checking parent directories
+      solo_dir = File.dirname(solo_path)
+      node_modules_parent = File.expand_path("../../lib/node_modules", solo_dir)
+
+      if File.directory?(node_modules_parent)
+        npm_packages = ["@hiero-ledger/solo", "@hashgraph/solo"]
+        npm_packages.each do |pkg|
+          pkg_path = File.join(node_modules_parent, pkg)
+          next unless File.exist?(pkg_path)
+
+          begin
+            # Try to uninstall using the npm prefix that matches this installation
+            npm_prefix = File.expand_path("../..", solo_dir)
+            system "npm", "uninstall", "-g", "--prefix", npm_prefix, pkg
+            ohai "Removed #{pkg} from #{npm_prefix}."
+          rescue BuildError
+            opoo <<~EOS
+              ATTENTION: Could not automatically remove #{pkg} at #{pkg_path}.
+              Please remove manually: npm uninstall -g --prefix #{npm_prefix} #{pkg}
+            EOS
+          end
+        end
+      else
+        opoo <<~EOS
+          ATTENTION: Found solo binary at #{solo_path} that is not managed by npm or Homebrew.
+          Please remove it manually before installing:
+            rm '#{solo_path}'
+        EOS
+      end
+    end
+
+    # Step 3: Detect and remove global npm links/installations from default npm root.
     npm_packages = ["@hiero-ledger/solo", "@hashgraph/solo"]
     npm_env = {"NPM_CONFIG_PREFIX" => nil}
     npm_root = Utils.popen_read(npm_env, "npm", "root", "-g").strip
@@ -166,7 +220,7 @@ class Solo < Formula
       end
     end
 
-    # Step 3: Install the Homebrew-managed npm package and expose the binary.
+    # Step 4: Install the Homebrew-managed npm package and expose the binary.
     # Export system CA certificates so npm can trust enterprise/corporate CA certificates
     # used by SSL inspection proxies (e.g., Zscaler, Cisco Umbrella).
     npm_install_env = {}
@@ -200,7 +254,7 @@ class Solo < Formula
   end
 
   def post_install
-    # Step 4: Guard against any lingering non-Homebrew solo binary after install.
+    # Step 5: Guard against any lingering non-Homebrew solo binary after install.
     brew_bin_solo = HOMEBREW_PREFIX/"bin/solo"
     return unless brew_bin_solo.exist? || brew_bin_solo.symlink?
 
@@ -226,6 +280,18 @@ class Solo < Formula
       Please remove it before installing: rm '#{brew_bin_solo}'
       Alternatively: brew link --overwrite solo
     EOS
+  end
+
+  private
+
+  def detect_solo_version_at(path)
+    return "unknown" if path.to_s.empty?
+    return "unknown" unless File.exist?(path) || File.symlink?(path)
+
+    version_output = Utils.safe_popen_read(path, "--version").strip
+    version_output.empty? ? "unknown" : version_output
+  rescue StandardError
+    "unknown"
   end
 
   test do
