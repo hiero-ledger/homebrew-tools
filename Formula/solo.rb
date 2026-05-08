@@ -93,15 +93,26 @@ class Solo < Formula
     # Step 2: Find and remove ALL solo binaries in PATH (npm global, nvm, custom prefixes, etc.).
     solo_binaries_in_path = `which -a solo 2>/dev/null`.strip.split("\n").reject(&:empty?)
     brew_solo_path = (HOMEBREW_PREFIX/"bin/solo").to_s
-    processed_solo_paths = {}
-
     solo_binaries_in_path.each do |solo_path|
       next if solo_path == brew_solo_path
       next if solo_path.start_with?((HOMEBREW_PREFIX/"Cellar/solo").to_s)
       next if solo_path.start_with?((HOMEBREW_PREFIX/"opt/solo").to_s)
-      processed_solo_paths[solo_path] = true
 
       old_version = detect_solo_version_at(solo_path)
+      if nvm_managed_solo_path?(solo_path)
+        npm_prefix = File.expand_path("..", File.dirname(solo_path))
+        opoo <<~EOS
+          ATTENTION: Found existing nvm-managed solo installation.
+          Path: #{solo_path}
+          Version detected: #{old_version}
+          Homebrew cannot safely remove nvm-managed binaries during formula install.
+          Please remove it manually before installing:
+            npm uninstall -g --prefix #{npm_prefix} @hashgraph/solo
+            npm uninstall -g --prefix #{npm_prefix} @hiero-ledger/solo
+        EOS
+        next
+      end
+
       opoo <<~EOS
         ATTENTION: Will remove existing solo installation.
         Path: #{solo_path}
@@ -109,9 +120,10 @@ class Solo < Formula
         Attempting to remove it to avoid PATH conflicts.
       EOS
 
-      # Determine if it's an npm installation by checking parent directories
+      # Determine if it's an npm installation by checking standard npm global layout.
       solo_dir = File.dirname(solo_path)
-      node_modules_parent = File.expand_path("../../lib/node_modules", solo_dir)
+      npm_prefix = File.expand_path("..", solo_dir)
+      node_modules_parent = File.join(npm_prefix, "lib/node_modules")
 
       if File.directory?(node_modules_parent)
         npm_packages = ["@hiero-ledger/solo", "@hashgraph/solo"]
@@ -120,8 +132,7 @@ class Solo < Formula
           next unless File.exist?(pkg_path)
 
           begin
-            # Try to uninstall using the npm prefix that matches this installation
-            npm_prefix = File.expand_path("../..", solo_dir)
+            # Try to uninstall using the npm prefix that matches this installation.
             system "npm", "uninstall", "-g", "--prefix", npm_prefix, pkg
             ohai "Removed #{pkg} from #{npm_prefix}."
           rescue BuildError
@@ -140,39 +151,19 @@ class Solo < Formula
       end
     end
 
-    # Step 2b: Explicitly handle nvm-managed solo installations that may be hidden by brew superenv.
+    # Step 2b: Detect nvm-managed solo installs and provide manual cleanup guidance.
     detect_nvm_solo_paths.each do |solo_path|
-      next if processed_solo_paths.key?(solo_path)
-
       old_version = detect_solo_version_at(solo_path)
-      opoo <<~EOS
-        ATTENTION: Will remove existing nvm-managed solo installation.
-        Path: #{solo_path}
-        Version to remove: #{old_version}
-        Attempting to remove it to avoid PATH conflicts.
-      EOS
-
       npm_prefix = File.expand_path("..", File.dirname(solo_path))
-      ["@hiero-ledger/solo", "@hashgraph/solo"].each do |pkg|
-        begin
-          system "npm", "uninstall", "-g", "--prefix", npm_prefix, pkg
-        rescue BuildError
-          opoo <<~EOS
-            ATTENTION: Could not automatically remove #{pkg} from nvm prefix #{npm_prefix}.
-            Please remove manually: npm uninstall -g --prefix #{npm_prefix} #{pkg}
-          EOS
-        end
-      end
-
-      if File.exist?(solo_path) || File.symlink?(solo_path)
-        opoo <<~EOS
-          ATTENTION: nvm-managed solo binary is still present at #{solo_path}.
-          Please remove it manually before installing:
-            rm '#{solo_path}'
-        EOS
-      else
-        ohai "Removed nvm-managed solo at #{solo_path}."
-      end
+      opoo <<~EOS
+        ATTENTION: Found existing nvm-managed solo installation.
+        Path: #{solo_path}
+        Version detected: #{old_version}
+        Homebrew cannot safely remove nvm-managed binaries during formula install.
+        Please remove it manually before installing:
+          npm uninstall -g --prefix #{npm_prefix} @hashgraph/solo
+          npm uninstall -g --prefix #{npm_prefix} @hiero-ledger/solo
+      EOS
     end
 
     # Step 3: Detect and remove global npm links/installations from default npm root.
@@ -331,13 +322,23 @@ class Solo < Formula
     "unknown"
   end
 
-  def detect_nvm_solo_paths
-    home = Dir.home
-    nvm_roots = [ENV["NVM_DIR"], File.join(home, ".nvm")].compact.uniq
-    paths = []
+  def nvm_managed_solo_path?(path)
+    path.include?("/.nvm/versions/node/") && path.end_with?("/bin/solo")
+  end
 
-    nvm_roots.each do |nvm_root|
-      next if nvm_root.to_s.empty?
+  def detect_nvm_solo_paths
+    require "etc"
+
+    user_home_candidates = [
+      ENV["HOMEBREW_ORIGINAL_HOME"],
+      Etc.getpwuid(Process.uid).dir,
+      Dir.home,
+      ENV["HOME"],
+    ].compact.uniq
+
+    paths = []
+    user_home_candidates.each do |home|
+      nvm_root = File.join(home, ".nvm")
       next unless File.directory?(nvm_root)
 
       Dir.glob(File.join(nvm_root, "versions/node/*/bin/solo")).each do |solo_path|
