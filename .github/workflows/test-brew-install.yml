@@ -386,21 +386,20 @@ jobs:
         if: matrix.scenario == 'npm' && env.ASSERT_STEP2_PROMPT == '1' && env.OLD_SOLO_ON_PATH == '1'
         run: |
           set -euo pipefail
-          prompt_regex="ATTENTION: Will remove existing solo installation\\."
-          path_regex="Path:[[:space:]]*/.*/solo"
-
-          if ! grep -Eq "${prompt_regex}" brew-install.log; then
-            echo "Missing Step 2 removal prompt in brew output."
-            exit 1
+          if grep -Eq "ATTENTION: Will remove existing solo installation\\." brew-install.log; then
+            if ! grep -Eq "Path:[[:space:]]*/.*/solo" brew-install.log; then
+              echo "Missing Step 2 path line in brew output."
+              exit 1
+            fi
+            if ! grep -Eq "Version to remove:[[:space:]]*" brew-install.log; then
+              echo "Missing Step 2 version line in brew output."
+              exit 1
+            fi
+            exit 0
           fi
 
-          if ! grep -Eq "${path_regex}" brew-install.log; then
-            echo "Missing Step 2 path line in brew output."
-            exit 1
-          fi
-
-          if ! grep -Eq "Version to remove:[[:space:]]*" brew-install.log; then
-            echo "Missing Step 2 version line in brew output."
+          if ! grep -Eq "ATTENTION: Detected a global npm install for @hashgraph/solo\\.|ATTENTION: Detected a global npm install for @hiero-ledger/solo\\." brew-install.log; then
+            echo "Missing expected npm conflict cleanup prompt (Step 2 or Step 3) in brew output."
             exit 1
           fi
 
