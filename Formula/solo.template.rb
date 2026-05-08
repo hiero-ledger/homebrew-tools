@@ -93,11 +93,13 @@ class Solo < Formula
     # Step 2: Find and remove ALL solo binaries in PATH (npm global, nvm, custom prefixes, etc.).
     solo_binaries_in_path = `which -a solo 2>/dev/null`.strip.split("\n").reject(&:empty?)
     brew_solo_path = (HOMEBREW_PREFIX/"bin/solo").to_s
+    processed_solo_paths = {}
 
     solo_binaries_in_path.each do |solo_path|
       next if solo_path == brew_solo_path
       next if solo_path.start_with?((HOMEBREW_PREFIX/"Cellar/solo").to_s)
       next if solo_path.start_with?((HOMEBREW_PREFIX/"opt/solo").to_s)
+      processed_solo_paths[solo_path] = true
 
       old_version = detect_solo_version_at(solo_path)
       opoo <<~EOS
@@ -135,6 +137,41 @@ class Solo < Formula
           Please remove it manually before installing:
             rm '#{solo_path}'
         EOS
+      end
+    end
+
+    # Step 2b: Explicitly handle nvm-managed solo installations that may be hidden by brew superenv.
+    detect_nvm_solo_paths.each do |solo_path|
+      next if processed_solo_paths.key?(solo_path)
+
+      old_version = detect_solo_version_at(solo_path)
+      opoo <<~EOS
+        ATTENTION: Will remove existing nvm-managed solo installation.
+        Path: #{solo_path}
+        Version to remove: #{old_version}
+        Attempting to remove it to avoid PATH conflicts.
+      EOS
+
+      npm_prefix = File.expand_path("..", File.dirname(solo_path))
+      ["@hiero-ledger/solo", "@hashgraph/solo"].each do |pkg|
+        begin
+          system "npm", "uninstall", "-g", "--prefix", npm_prefix, pkg
+        rescue BuildError
+          opoo <<~EOS
+            ATTENTION: Could not automatically remove #{pkg} from nvm prefix #{npm_prefix}.
+            Please remove manually: npm uninstall -g --prefix #{npm_prefix} #{pkg}
+          EOS
+        end
+      end
+
+      if File.exist?(solo_path) || File.symlink?(solo_path)
+        opoo <<~EOS
+          ATTENTION: nvm-managed solo binary is still present at #{solo_path}.
+          Please remove it manually before installing:
+            rm '#{solo_path}'
+        EOS
+      else
+        ohai "Removed nvm-managed solo at #{solo_path}."
       end
     end
 
@@ -292,6 +329,25 @@ class Solo < Formula
     version_output.empty? ? "unknown" : version_output
   rescue StandardError
     "unknown"
+  end
+
+  def detect_nvm_solo_paths
+    home = Dir.home
+    nvm_roots = [ENV["NVM_DIR"], File.join(home, ".nvm")].compact.uniq
+    paths = []
+
+    nvm_roots.each do |nvm_root|
+      next if nvm_root.to_s.empty?
+      next unless File.directory?(nvm_root)
+
+      Dir.glob(File.join(nvm_root, "versions/node/*/bin/solo")).each do |solo_path|
+        paths << solo_path if File.exist?(solo_path) || File.symlink?(solo_path)
+      end
+    end
+
+    paths.uniq
+  rescue StandardError
+    []
   end
 
   test do

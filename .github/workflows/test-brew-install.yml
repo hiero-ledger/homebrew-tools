@@ -32,6 +32,7 @@ jobs:
           - ubuntu-latest
         scenario:
           - npm # preinstall via npm to test uninstall flow
+          - nvm # preinstall under ~/.nvm to test explicit nvm cleanup flow
           - brew # preinstall via brew to test unlink/upgrade flow
           - npm-link # create npm link to test unlink flow
           - stale-brew-bin # create stale /bin/solo symlink to test cleanup
@@ -73,6 +74,28 @@ jobs:
             npm install -g @hashgraph/solo
           fi
 
+      - name: Install old solo via nvm-like prefix
+        if: matrix.scenario == 'nvm'
+        run: |
+          set -euo pipefail
+          export NVM_DIR="${HOME}/.nvm"
+          nvm_prefix="${NVM_DIR}/versions/node/v20.0.0"
+          mkdir -p "${nvm_prefix}"
+          if [ -n "${OLD_SOLO_VERSION}" ]; then
+            npm install -g --prefix "${nvm_prefix}" "@hashgraph/solo@${OLD_SOLO_VERSION}"
+          else
+            npm install -g --prefix "${nvm_prefix}" "@hashgraph/solo"
+          fi
+
+          if [ ! -x "${nvm_prefix}/bin/solo" ]; then
+            echo "Failed to create nvm solo binary at ${nvm_prefix}/bin/solo"
+            exit 1
+          fi
+
+          echo "NVM_DIR=${NVM_DIR}" >> "${GITHUB_ENV}"
+          echo "NVM_TEST_PREFIX=${nvm_prefix}" >> "${GITHUB_ENV}"
+          echo "${nvm_prefix}/bin" >> "${GITHUB_PATH}"
+
       - name: Prepare npm permission failure
         if: matrix.scenario == 'npm-permission'
         run: |
@@ -108,7 +131,7 @@ jobs:
           ln -sf "$GITHUB_WORKSPACE" "${npm_root}/@hashgraph/solo"
 
       - name: Normalize brew/npm permissions for npm scenarios
-        if: matrix.scenario == 'npm' || matrix.scenario == 'npm-link'
+        if: matrix.scenario == 'npm' || matrix.scenario == 'npm-link' || matrix.scenario == 'nvm'
         run: |
           brew_prefix="$(brew --prefix)"
           if ! brew list --versions node >/dev/null 2>&1; then
@@ -285,7 +308,7 @@ jobs:
         if: matrix.scenario != 'npm-permission'
 
       - name: Verify npm install was overwritten by brew
-        if: matrix.scenario == 'npm'
+        if: matrix.scenario == 'npm' || matrix.scenario == 'nvm'
         run: |
           set -euo pipefail
           brew_prefix="$(brew --prefix)"
@@ -296,24 +319,41 @@ jobs:
             exit 1
           fi
 
-          npm_root="$(npm root -g)"
-          for pkg in "@hashgraph/solo" "@hiero-ledger/solo"; do
-            if [ -e "${npm_root}/${pkg}" ] && [ ! -L "${npm_root}/${pkg}" ]; then
-              echo "Expected ${pkg} to be removed from npm global root (${npm_root}), but it still exists."
+          if [ "${{ matrix.scenario }}" = "npm" ]; then
+            npm_root="$(npm root -g)"
+            for pkg in "@hashgraph/solo" "@hiero-ledger/solo"; do
+              if [ -e "${npm_root}/${pkg}" ] && [ ! -L "${npm_root}/${pkg}" ]; then
+                echo "Expected ${pkg} to be removed from npm global root (${npm_root}), but it still exists."
+                exit 1
+              fi
+            done
+          fi
+
+          if [ "${{ matrix.scenario }}" = "nvm" ]; then
+            if [ -n "${NVM_TEST_PREFIX:-}" ] && [ -e "${NVM_TEST_PREFIX}/bin/solo" ]; then
+              echo "Expected nvm solo binary to be removed from ${NVM_TEST_PREFIX}/bin/solo, but it still exists."
               exit 1
             fi
-          done
+          fi
 
       - name: Verify Step 2 removal prompt in brew logs
-        if: matrix.scenario == 'npm' && env.ASSERT_STEP2_PROMPT == '1'
+        if: (matrix.scenario == 'npm' || matrix.scenario == 'nvm') && env.ASSERT_STEP2_PROMPT == '1'
         run: |
           set -euo pipefail
-          if ! grep -Eq "ATTENTION: Will remove existing solo installation\." brew-install.log; then
+          if [ "${{ matrix.scenario }}" = "nvm" ]; then
+            prompt_regex="ATTENTION: Will remove existing nvm-managed solo installation\\."
+            path_regex="Path:[[:space:]]*.*\\.nvm/.*/bin/solo"
+          else
+            prompt_regex="ATTENTION: Will remove existing solo installation\\."
+            path_regex="Path:[[:space:]]*/.*/solo"
+          fi
+
+          if ! grep -Eq "${prompt_regex}" brew-install.log; then
             echo "Missing Step 2 removal prompt in brew output."
             exit 1
           fi
 
-          if ! grep -Eq "Path:[[:space:]]*/.*/solo" brew-install.log; then
+          if ! grep -Eq "${path_regex}" brew-install.log; then
             echo "Missing Step 2 path line in brew output."
             exit 1
           fi
