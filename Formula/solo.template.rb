@@ -109,6 +109,10 @@ class Solo < Formula
           Please remove it manually before installing:
             npm uninstall -g --prefix #{npm_prefix} @hashgraph/solo
             npm uninstall -g --prefix #{npm_prefix} @hiero-ledger/solo
+          After installation, if `solo` still resolves to the old path/version, run:
+            hash -r
+            command -v solo
+            solo --version
         EOS
         next
       end
@@ -163,6 +167,10 @@ class Solo < Formula
         Please remove it manually before installing:
           npm uninstall -g --prefix #{npm_prefix} @hashgraph/solo
           npm uninstall -g --prefix #{npm_prefix} @hiero-ledger/solo
+        After installation, if `solo` still resolves to the old path/version, run:
+          hash -r
+          command -v solo
+          solo --version
       EOS
     end
 
