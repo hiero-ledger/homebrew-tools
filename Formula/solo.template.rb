@@ -102,6 +102,9 @@ class Solo < Formula
       if nvm_managed_solo_path?(solo_path)
         npm_prefix = File.expand_path("..", File.dirname(solo_path))
         opoo <<~EOS
+          ============================================================================
+          IMPORTANT: NVM-MANAGED SOLO DETECTED (MANUAL ACTION REQUIRED)
+          ============================================================================
           ATTENTION: Found existing nvm-managed solo installation.
           Path: #{solo_path}
           Version detected: #{old_version}
@@ -109,7 +112,11 @@ class Solo < Formula
           Please remove it manually before installing:
             npm uninstall -g --prefix #{npm_prefix} @hashgraph/solo
             npm uninstall -g --prefix #{npm_prefix} @hiero-ledger/solo
-          After installation, if `solo` still resolves to the old path/version, run:
+          REQUIRED NEXT STEP AFTER INSTALL:
+            hash -r
+            command -v solo
+            solo --version
+          If `solo` still resolves to the old path/version, run:
             hash -r
             command -v solo
             solo --version
@@ -160,6 +167,9 @@ class Solo < Formula
       old_version = detect_solo_version_at(solo_path)
       npm_prefix = File.expand_path("..", File.dirname(solo_path))
       opoo <<~EOS
+        ============================================================================
+        IMPORTANT: NVM-MANAGED SOLO DETECTED (MANUAL ACTION REQUIRED)
+        ============================================================================
         ATTENTION: Found existing nvm-managed solo installation.
         Path: #{solo_path}
         Version detected: #{old_version}
@@ -167,7 +177,11 @@ class Solo < Formula
         Please remove it manually before installing:
           npm uninstall -g --prefix #{npm_prefix} @hashgraph/solo
           npm uninstall -g --prefix #{npm_prefix} @hiero-ledger/solo
-        After installation, if `solo` still resolves to the old path/version, run:
+        REQUIRED NEXT STEP AFTER INSTALL:
+          hash -r
+          command -v solo
+          solo --version
+        If `solo` still resolves to the old path/version, run:
           hash -r
           command -v solo
           solo --version
