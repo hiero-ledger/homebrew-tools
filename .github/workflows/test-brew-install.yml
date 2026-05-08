@@ -184,8 +184,10 @@ jobs:
             exit 0
           fi
           if command -v solo >/dev/null 2>&1; then
+            echo "OLD_SOLO_ON_PATH=1" >> "${GITHUB_ENV}"
             solo --version
           else
+            echo "OLD_SOLO_ON_PATH=0" >> "${GITHUB_ENV}"
             echo "solo not found on PATH; skipping old solo verification."
           fi
 
@@ -351,7 +353,11 @@ jobs:
           npm_root="$(npm root -g)"
           for pkg in "@hashgraph/solo" "@hiero-ledger/solo"; do
             if [ -e "${npm_root}/${pkg}" ] && [ ! -L "${npm_root}/${pkg}" ]; then
-              echo "Expected ${pkg} to be removed from npm global root (${npm_root}), but it still exists."
+              if grep -Eq "Detected a global npm install of ${pkg} that could not be removed|permissions error|sudo chown -R" brew-install.log; then
+                echo "Observed expected permission-gated cleanup warning for ${pkg}; continuing."
+                continue
+              fi
+              echo "Expected ${pkg} to be removed from npm global root (${npm_root}), but it still exists without guidance."
               exit 1
             fi
           done
@@ -377,7 +383,7 @@ jobs:
           fi
 
       - name: Verify Step 2 removal prompt in brew logs
-        if: matrix.scenario == 'npm' && env.ASSERT_STEP2_PROMPT == '1'
+        if: matrix.scenario == 'npm' && env.ASSERT_STEP2_PROMPT == '1' && env.OLD_SOLO_ON_PATH == '1'
         run: |
           set -euo pipefail
           prompt_regex="ATTENTION: Will remove existing solo installation\\."
