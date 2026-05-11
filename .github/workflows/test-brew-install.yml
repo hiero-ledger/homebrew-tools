@@ -32,9 +32,11 @@ jobs:
           - ubuntu-latest
         scenario:
           - npm # preinstall via npm to test uninstall flow
+          - nvm # preinstall under ~/.nvm to test explicit nvm cleanup flow
           - brew # preinstall via brew to test unlink/upgrade flow
           - npm-link # create npm link to test unlink flow
           - stale-brew-bin # create stale /bin/solo symlink to test cleanup
+          - stale-broken-brew-bin # create stale broken /bin/solo symlink to test cleanup
           - stale-brew-bin-permission # create undeletable stale /bin/solo symlink to test EPERM handling
           - npm-permission # simulate npm permission errors to test guidance
     env:
@@ -42,6 +44,7 @@ jobs:
       HOMEBREW_NO_INSTALL_CLEANUP: "1"
       OLD_SOLO_VERSION: "${{ github.event.inputs.old-solo-version || '0.53.1' }}"
       NEW_SOLO_VERSION: "${{ github.event.inputs.new-solo-version || '' }}"
+      ASSERT_STEP2_PROMPT: "1"
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
@@ -70,6 +73,28 @@ jobs:
           else
             npm install -g @hashgraph/solo
           fi
+
+      - name: Install old solo via nvm-like prefix
+        if: matrix.scenario == 'nvm'
+        run: |
+          set -euo pipefail
+          export NVM_DIR="${HOME}/.nvm"
+          nvm_prefix="${NVM_DIR}/versions/node/v20.0.0"
+          mkdir -p "${nvm_prefix}"
+          if [ -n "${OLD_SOLO_VERSION}" ]; then
+            npm install -g --prefix "${nvm_prefix}" "@hashgraph/solo@${OLD_SOLO_VERSION}"
+          else
+            npm install -g --prefix "${nvm_prefix}" "@hashgraph/solo"
+          fi
+
+          if [ ! -x "${nvm_prefix}/bin/solo" ]; then
+            echo "Failed to create nvm solo binary at ${nvm_prefix}/bin/solo"
+            exit 1
+          fi
+
+          echo "NVM_DIR=${NVM_DIR}" >> "${GITHUB_ENV}"
+          echo "NVM_TEST_PREFIX=${nvm_prefix}" >> "${GITHUB_ENV}"
+          echo "${nvm_prefix}/bin" >> "${GITHUB_PATH}"
 
       - name: Prepare npm permission failure
         if: matrix.scenario == 'npm-permission'
@@ -106,7 +131,7 @@ jobs:
           ln -sf "$GITHUB_WORKSPACE" "${npm_root}/@hashgraph/solo"
 
       - name: Normalize brew/npm permissions for npm scenarios
-        if: matrix.scenario == 'npm' || matrix.scenario == 'npm-link'
+        if: matrix.scenario == 'npm' || matrix.scenario == 'npm-link' || matrix.scenario == 'nvm'
         run: |
           brew_prefix="$(brew --prefix)"
           if ! brew list --versions node >/dev/null 2>&1; then
@@ -131,6 +156,12 @@ jobs:
           touch "${brew_prefix}/lib/node_modules/@hashgraph/solo/dist/solo.js"
           ln -sf "${brew_prefix}/lib/node_modules/@hashgraph/solo/dist/solo.js" "${brew_prefix}/bin/solo"
 
+      - name: Create stale broken brew bin symlink
+        if: matrix.scenario == 'stale-broken-brew-bin'
+        run: |
+          brew_prefix="$(brew --prefix)"
+          ln -sf "${brew_prefix}/lib/node_modules/@hashgraph/solo/dist/missing-solo.js" "${brew_prefix}/bin/solo"
+
       - name: Create stale brew bin symlink with permission conflict
         if: matrix.scenario == 'stale-brew-bin-permission'
         run: |
@@ -147,19 +178,23 @@ jobs:
 
       - name: Verify old solo works
         run: |
-          if [ "${{ matrix.scenario }}" = "stale-brew-bin" ] || [ "${{ matrix.scenario }}" = "stale-brew-bin-permission" ]; then
+          scenario="${{ matrix.scenario }}"
+          if [[ "$scenario" == stale-brew-bin* ]]; then
             echo "Skipping old solo verification for stale-brew-bin scenarios."
             exit 0
           fi
           if command -v solo >/dev/null 2>&1; then
+            echo "OLD_SOLO_ON_PATH=1" >> "${GITHUB_ENV}"
             solo --version
           else
+            echo "OLD_SOLO_ON_PATH=0" >> "${GITHUB_ENV}"
             echo "solo not found on PATH; skipping old solo verification."
           fi
 
       - name: Install latest solo via brew
-        if: matrix.scenario != 'npm-permission' && matrix.scenario != 'stale-brew-bin' && matrix.scenario != 'stale-brew-bin-permission'
+        if: matrix.scenario != 'npm-permission' && matrix.scenario != 'stale-brew-bin' && matrix.scenario != 'stale-broken-brew-bin' && matrix.scenario != 'stale-brew-bin-permission'
         run: |
+          set -euo pipefail
           if [ "${{ matrix.scenario }}" = "npm" ] || [ "${{ matrix.scenario }}" = "npm-link" ]; then
             brew_prefix="$(brew --prefix)"
             sudo chown -R "$USER":"$(id -gn)" "${brew_prefix}/lib/node_modules" 2>/dev/null || true
@@ -169,16 +204,20 @@ jobs:
             brew unlink "solo@${OLD_SOLO_VERSION}" || true
           fi
           brew unlink solo || true
+          if [ "${{ matrix.scenario }}" = "nvm" ]; then
+            export HOMEBREW_ORIGINAL_HOME="${HOME}"
+            export NVM_DIR="${HOME}/.nvm"
+          fi
           if [ -n "${NEW_SOLO_VERSION}" ]; then
-            brew reinstall --build-from-source hiero-ledger/tools/solo@${NEW_SOLO_VERSION}
+            brew reinstall --build-from-source hiero-ledger/tools/solo@${NEW_SOLO_VERSION} 2>&1 | tee brew-install.log
             brew link --overwrite solo@${NEW_SOLO_VERSION} || true
           else
-            brew reinstall --build-from-source hiero-ledger/tools/solo
+            brew reinstall --build-from-source hiero-ledger/tools/solo 2>&1 | tee brew-install.log
           fi
         continue-on-error: ${{ matrix.scenario == 'npm-permission' }}
 
       - name: Verify stale symlink handling and retry install
-        if: matrix.scenario == 'stale-brew-bin'
+        if: (matrix.scenario == 'stale-brew-bin' || matrix.scenario == 'stale-broken-brew-bin')
         run: |
           set -euo pipefail
           brew_prefix="$(brew --prefix)"
@@ -187,44 +226,67 @@ jobs:
           # 1) auto-recover on first install attempt, or
           # 2) fail with actionable stale-symlink guidance.
           set +e
-          brew reinstall --build-from-source hiero-ledger/tools/solo 2>&1 | tee brew-stale.log
+          brew install --build-from-source hiero-ledger/tools/solo 2>&1 | tee brew-stale.log
           rc=$?
           set -e
 
           if [ "$rc" -eq 0 ]; then
-            echo "First reinstall succeeded; stale symlink was auto-handled."
+            echo "First install succeeded; stale symlink was auto-handled."
             exit 0
           fi
 
-          if ! grep -Eq "Found an existing solo binary|Please remove it before installing|Could not symlink bin/solo|Target .*bin/solo.*already exists|Found a non-Homebrew solo symlink" brew-stale.log; then
+          if ! grep -Eq "Found an existing solo binary|Please remove it before installing|Could not symlink bin/solo|Target .*bin/solo.*already exists|Found a non-Homebrew solo symlink|Found a stale or non-Homebrew solo symlink" brew-stale.log; then
             echo "Expected stale symlink guidance not found in brew output."
             exit 1
           fi
 
           # Remove stale symlink and retry.
           rm -f "${brew_prefix}/bin/solo" || true
-          brew reinstall --build-from-source hiero-ledger/tools/solo
+          brew install --build-from-source hiero-ledger/tools/solo
 
       - name: Verify stale symlink permission handling and retry install
         if: matrix.scenario == 'stale-brew-bin-permission'
         run: |
           brew_prefix="$(brew --prefix)"
 
-          # First attempt should fail early with actionable guidance when bin/solo cannot be removed.
-          brew reinstall --build-from-source hiero-ledger/tools/solo 2>&1 | tee brew-stale-permission.log || true
-          if ! grep -Eq "Unable to remove .*bin/solo|Cannot remove .*bin/solo|directories are not writable by your user|/home/linuxbrew/.linuxbrew/bin" brew-stale-permission.log; then
-            echo "Expected stale-symlink or preflight permission guidance not found in brew output."
+          # First attempt should fail with permission error during linking phase.
+          set +e
+          brew install --build-from-source hiero-ledger/tools/solo 2>&1 | tee brew-stale-permission.log
+          install_rc=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$install_rc" -eq 0 ]; then
+            echo "Expected install to fail due to permission conflict, but it succeeded."
             exit 1
           fi
 
-          # Restore and retry should succeed.
-          if [ "${RUNNER_OS}" = "macOS" ]; then
-            sudo chflags -h nouchg "${brew_prefix}/bin/solo" || true
-          else
-            sudo chmod 755 "${brew_prefix}/bin" || true
+          if ! grep -Eq "Operation not permitted|Unable to remove .*bin/solo|Cannot remove .*bin/solo|directories are not writable by your user|/home/linuxbrew/.linuxbrew/bin" brew-stale-permission.log; then
+            echo "Expected permission error not found in brew output."
+            exit 1
           fi
-          rm -f "${brew_prefix}/bin/solo" || true
-          brew reinstall --build-from-source hiero-ledger/tools/solo
+
+          # Restore permissions and retry should succeed.
+          if [ "${RUNNER_OS}" = "macOS" ]; then
+            sudo chflags -h nouchg "${brew_prefix}/bin/solo"
+            sudo rm -f "${brew_prefix}/bin/solo"
+          else
+            sudo chmod 755 "${brew_prefix}/bin"
+            rm -f "${brew_prefix}/bin/solo"
+          fi
+
+          # Verify symlink was removed
+          if [ -e "${brew_prefix}/bin/solo" ] || [ -L "${brew_prefix}/bin/solo" ]; then
+            echo "ERROR: Failed to remove ${brew_prefix}/bin/solo before retry"
+            ls -la "${brew_prefix}/bin/solo" || true
+            exit 1
+          fi
+
+          # Uninstall partially-installed solo from first attempt
+          brew uninstall --force --ignore-dependencies hiero-ledger/tools/solo 2>/dev/null || true
+
+          # Retry install should now succeed
+          brew install --build-from-source hiero-ledger/tools/solo
+
 
       - name: Verify latest solo works
         run: |
@@ -249,7 +311,111 @@ jobs:
             echo "Version mismatch: expected ${expected}, got ${actual}"
             exit 1
           fi
-        if: matrix.scenario != 'npm-permission'
+        if: matrix.scenario != 'npm-permission' && matrix.scenario != 'nvm'
+
+      - name: Verify brew solo works for nvm scenario
+        if: matrix.scenario == 'nvm'
+        run: |
+          set -euo pipefail
+          brew_prefix="$(brew --prefix)"
+          raw_output="$(${brew_prefix}/bin/solo --version)"
+          echo "${raw_output}"
+
+          if [ -n "${NEW_SOLO_VERSION}" ]; then
+            expected="${NEW_SOLO_VERSION}"
+          else
+            expected="$(grep -E '^[[:space:]]*version[[:space:]]+"' Formula/solo.rb | sed -E 's/^[[:space:]]*version[[:space:]]+"([^"]+)".*/\1/' | head -n 1)"
+          fi
+
+          actual="$(printf '%s\n' "${raw_output}" | sed -nE 's/^[[:space:]]*Version[[:space:]]*:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+).*$/\1/p' | head -n 1)"
+          if [ -z "${actual}" ]; then
+            echo "Failed to parse brew solo version from output."
+            exit 1
+          fi
+
+          if [ "${actual}" != "${expected}" ]; then
+            echo "Version mismatch: expected ${expected}, got ${actual}"
+            exit 1
+          fi
+
+      - name: Verify npm install was overwritten by brew
+        if: matrix.scenario == 'npm'
+        run: |
+          set -euo pipefail
+          brew_prefix="$(brew --prefix)"
+          active_solo="$(command -v solo)"
+
+          if [ "${active_solo}" != "${brew_prefix}/bin/solo" ]; then
+            echo "Expected active solo to be ${brew_prefix}/bin/solo, got ${active_solo}"
+            exit 1
+          fi
+
+          npm_root="$(npm root -g)"
+          for pkg in "@hashgraph/solo" "@hiero-ledger/solo"; do
+            if [ -e "${npm_root}/${pkg}" ] && [ ! -L "${npm_root}/${pkg}" ]; then
+              if grep -Eq "Detected a global npm install of ${pkg} that could not be removed|permissions error|sudo chown -R" brew-install.log; then
+                echo "Observed expected permission-gated cleanup warning for ${pkg}; continuing."
+                continue
+              fi
+              echo "Expected ${pkg} to be removed from npm global root (${npm_root}), but it still exists without guidance."
+              exit 1
+            fi
+          done
+
+      - name: Verify nvm install remains active with guidance
+        if: matrix.scenario == 'nvm'
+        run: |
+          set -euo pipefail
+          if [ -z "${NVM_TEST_PREFIX:-}" ]; then
+            echo "NVM_TEST_PREFIX is not set."
+            exit 1
+          fi
+
+          active_solo="$(command -v solo)"
+          if [ "${active_solo}" != "${NVM_TEST_PREFIX}/bin/solo" ]; then
+            echo "Expected active solo to remain nvm-managed at ${NVM_TEST_PREFIX}/bin/solo, got ${active_solo}"
+            exit 1
+          fi
+
+          if [ ! -e "${NVM_TEST_PREFIX}/bin/solo" ]; then
+            echo "Expected nvm solo binary to remain at ${NVM_TEST_PREFIX}/bin/solo"
+            exit 1
+          fi
+
+      - name: Verify Step 2 removal prompt in brew logs
+        if: matrix.scenario == 'npm' && env.ASSERT_STEP2_PROMPT == '1' && env.OLD_SOLO_ON_PATH == '1'
+        run: |
+          set -euo pipefail
+          if grep -Eq "ATTENTION: Will remove existing solo installation\\." brew-install.log; then
+            if ! grep -Eq "Path:[[:space:]]*/.*/solo" brew-install.log; then
+              echo "Warning: Missing Step 2 path line in brew output."
+              exit 0
+            fi
+            if ! grep -Eq "Version to remove:[[:space:]]*" brew-install.log; then
+              echo "Warning: Missing Step 2 version line in brew output."
+              exit 0
+            fi
+            exit 0
+          fi
+
+          if ! grep -Eq "ATTENTION: Detected a global npm install (for|of) @hashgraph/solo|ATTENTION: Detected a global npm install (for|of) @hiero-ledger/solo" brew-install.log; then
+            echo "Warning: Missing expected npm conflict cleanup prompt (Step 2 or Step 3) in brew output."
+            exit 0
+          fi
+
+      - name: Verify nvm shadow warning in brew logs
+        if: matrix.scenario == 'nvm' && env.ASSERT_STEP2_PROMPT == '1'
+        run: |
+          set -euo pipefail
+          if ! grep -Eq "shadowed by .*\\.nvm/.*/bin/solo" brew-install.log; then
+            echo "Missing nvm shadow warning in brew output."
+            exit 1
+          fi
+
+          if ! grep -Eq "Running these by name will not invoke the version provided by Homebrew\\." brew-install.log; then
+            echo "Missing nvm shadow guidance detail in brew output."
+            exit 1
+          fi
 
       - name: Verify npm permission error message
         if: matrix.scenario == 'npm-permission'
