@@ -1,10 +1,10 @@
-class Solo < Formula
+class SoloAT0720 < Formula
   desc "An opinionated CLI tool to deploy and manage standalone test networks."
   homepage "https://github.com/hiero-ledger/solo"
 
-  url "https://registry.npmjs.org/@hashgraph/solo/-/solo-0.73.0.tgz"
-  sha256 "77e8ac2486e78eb594de9ebb52dc857c4edfd5eb6aefc0a77f33c58f41264be1"
-  version "0.73.0"
+  url "https://registry.npmjs.org/@hashgraph/solo/-/solo-0.72.0.tgz"
+  sha256 "6b4d1cd6645448154ecd916ab14ff5e1434d7df349ae53d18761942413e5ded3"
+  version "0.72.0"
 
   depends_on "node"
   link_overwrite "bin/solo"
@@ -290,7 +290,7 @@ class Solo < Formula
   end
 
   def post_install
-    # Step 5: Guard against any lingering non-Homebrew solo binary after install.
+    # Step 4: Guard against any lingering non-Homebrew solo binary after install.
     brew_bin_solo = HOMEBREW_PREFIX/"bin/solo"
     return unless brew_bin_solo.exist? || brew_bin_solo.symlink?
 
