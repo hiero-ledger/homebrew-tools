@@ -108,18 +108,11 @@ class Solo < Formula
           ATTENTION: Found existing nvm-managed solo installation.
           Path: #{solo_path}
           Version detected: #{old_version}
-          Homebrew cannot safely remove nvm-managed binaries during formula install.
+          Homebrew does not automatically remove nvm-managed binaries during formula install.
           Please remove it manually before installing:
             npm uninstall -g --prefix #{npm_prefix} @hashgraph/solo
             npm uninstall -g --prefix #{npm_prefix} @hiero-ledger/solo
-          REQUIRED NEXT STEP AFTER INSTALL:
-            hash -r
-            command -v solo
-            solo --version
-          If `solo` still resolves to the old path/version, run:
-            hash -r
-            command -v solo
-            solo --version
+          Note: after install, follow the `hash -r` verification steps shown in Caveats.
         EOS
         next
       end
@@ -173,18 +166,11 @@ class Solo < Formula
         ATTENTION: Found existing nvm-managed solo installation.
         Path: #{solo_path}
         Version detected: #{old_version}
-        Homebrew cannot safely remove nvm-managed binaries during formula install.
+        Homebrew does not automatically remove nvm-managed binaries during formula install.
         Please remove it manually before installing:
           npm uninstall -g --prefix #{npm_prefix} @hashgraph/solo
           npm uninstall -g --prefix #{npm_prefix} @hiero-ledger/solo
-        REQUIRED NEXT STEP AFTER INSTALL:
-          hash -r
-          command -v solo
-          solo --version
-        If `solo` still resolves to the old path/version, run:
-          hash -r
-          command -v solo
-          solo --version
+        Note: after install, follow the `hash -r` verification steps shown in Caveats.
       EOS
     end
 
