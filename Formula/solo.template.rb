@@ -260,6 +260,7 @@ class Solo < Formula
     # Export system CA certificates so npm can trust enterprise/corporate CA certificates
     # used by SSL inspection proxies (e.g., Zscaler, Cisco Umbrella).
     npm_install_env = {}
+    npm_install_env["SOLO_NO_CACHE"] = "true" if ENV.key?("HOMEBREW_NO_SOLO_CACHE")
     if OS.mac?
       ca_bundle = buildpath/"ca-bundle.pem"
       [
