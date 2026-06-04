@@ -288,6 +288,9 @@ class Solo < Formula
       system "npm", "install", *std_npm_args
     end
     bin.install_symlink Dir["#{libexec}/bin/*"]
+
+    # Step 4b: Warm default Solo images to reduce first-run setup time.
+    pull_default_cache_images unless ENV.key?("HOMEBREW_NO_SOLO_CACHE")
   end
 
   def post_install
@@ -331,6 +334,24 @@ class Solo < Formula
   end
 
   private
+
+  def pull_default_cache_images
+    solo_bin = libexec/"bin/solo"
+    unless solo_bin.exist?
+      opoo "Skipped `solo cache image pull`: #{solo_bin} was not found."
+      return
+    end
+
+    ohai "Pre-pulling default Solo cache images..."
+    system solo_bin, "cache", "image", "pull"
+    ohai "Completed `solo cache image pull`."
+  rescue BuildError => e
+    opoo <<~EOS
+      ATTENTION: Could not pre-pull Solo cache images during install (#{e.message}).
+      You can run it manually any time with:
+        solo cache image pull
+    EOS
+  end
 
   def detect_solo_version_at(path)
     return "unknown" if path.to_s.empty?
