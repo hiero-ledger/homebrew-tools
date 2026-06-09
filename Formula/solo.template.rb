@@ -353,6 +353,7 @@ class Solo < Formula
     timeout_seconds = 1800 if timeout_seconds <= 0
     progress_interval_seconds = 30
     read_chunk_size = 65_536
+    graceful_shutdown_wait_seconds = 2
     started_at = Time.now
     last_progress_log_at = started_at
     status = nil
@@ -367,16 +368,20 @@ class Solo < Formula
           elapsed_seconds = (Time.now - started_at).to_i
           if elapsed_seconds >= timeout_seconds
             timed_out = true
-            begin
-              Process.kill("TERM", wait_thread.pid)
-            rescue Errno::ESRCH => e
-              opoo "Cache image pull process already exited before TERM: #{e.message}"
+            if wait_thread.alive?
+              begin
+                Process.kill("TERM", wait_thread.pid)
+              rescue Errno::ESRCH => e
+                opoo "Cache image pull process already exited before TERM: #{e.message}"
+              end
             end
-            sleep 2
-            begin
-              Process.kill("KILL", wait_thread.pid)
-            rescue Errno::ESRCH => e
-              opoo "Cache image pull process already exited before KILL: #{e.message}"
+            sleep graceful_shutdown_wait_seconds
+            if wait_thread.alive?
+              begin
+                Process.kill("KILL", wait_thread.pid)
+              rescue Errno::ESRCH => e
+                opoo "Cache image pull process already exited before KILL: #{e.message}"
+              end
             end
             status = wait_thread.value
             break
