@@ -342,10 +342,67 @@ class Solo < Formula
       return
     end
 
+    require "open3"
+
+    timeout_seconds = Integer(ENV.fetch("HOMEBREW_SOLO_CACHE_PULL_TIMEOUT", "1800"))
+    timeout_seconds = 1800 if timeout_seconds <= 0
+    progress_interval_seconds = 30
+    started_at = Time.now
+    last_progress_log_at = started_at
+    status = nil
+    timed_out = false
+
     ohai "Pre-pulling default Solo cache images..."
-    system solo_bin, "cache", "image", "pull"
+    Open3.popen2e(solo_bin.to_s, "cache", "image", "pull") do |_stdin, output, wait_thread|
+      loop do
+        chunk = output.read_nonblock(4096, exception: false)
+        case chunk
+        when :wait_readable
+          elapsed_seconds = (Time.now - started_at).to_i
+          if elapsed_seconds >= timeout_seconds
+            timed_out = true
+            Process.kill("TERM", wait_thread.pid) rescue Errno::ESRCH
+            sleep 2
+            Process.kill("KILL", wait_thread.pid) rescue Errno::ESRCH
+            status = wait_thread.value
+            break
+          end
+
+          if (Time.now - last_progress_log_at) >= progress_interval_seconds
+            ohai "Still pre-pulling Solo cache images... #{elapsed_seconds}s elapsed."
+            last_progress_log_at = Time.now
+          end
+
+          sleep 1
+        when nil
+          status = wait_thread.value
+          break
+        else
+          print chunk
+        end
+      end
+    end
+
+    if timed_out
+      opoo <<~EOS
+        ATTENTION: `solo cache image pull` timed out after #{timeout_seconds}s.
+        Homebrew install will continue. You can retry manually any time with:
+          solo cache image pull
+      EOS
+      return
+    end
+
+    unless status&.success?
+      opoo <<~EOS
+        ATTENTION: `solo cache image pull` exited with status #{status&.exitstatus || "unknown"}.
+        Homebrew install will continue. You can retry manually any time with:
+          solo cache image pull
+      EOS
+      return
+    end
+
     ohai "Completed `solo cache image pull`."
-  rescue BuildError => e
+  rescue StandardError => e
     opoo <<~EOS
       ATTENTION: Could not pre-pull Solo cache images during install (#{e.message}).
       You can run it manually any time with:
