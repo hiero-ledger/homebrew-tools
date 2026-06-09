@@ -355,15 +355,23 @@ class Solo < Formula
     ohai "Pre-pulling default Solo cache images..."
     Open3.popen2e(solo_bin.to_s, "cache", "image", "pull") do |_stdin, output, wait_thread|
       loop do
-        chunk = output.read_nonblock(4096, exception: false)
+        chunk = output.read_nonblock(65_536, exception: false)
         case chunk
         when :wait_readable
           elapsed_seconds = (Time.now - started_at).to_i
           if elapsed_seconds >= timeout_seconds
             timed_out = true
-            Process.kill("TERM", wait_thread.pid) rescue Errno::ESRCH
+            begin
+              Process.kill("TERM", wait_thread.pid)
+            rescue Errno::ESRCH => e
+              ohai "Cache image pull process already exited before TERM: #{e.message}"
+            end
             sleep 2
-            Process.kill("KILL", wait_thread.pid) rescue Errno::ESRCH
+            begin
+              Process.kill("KILL", wait_thread.pid)
+            rescue Errno::ESRCH => e
+              ohai "Cache image pull process already exited before KILL: #{e.message}"
+            end
             status = wait_thread.value
             break
           end
