@@ -364,13 +364,13 @@ class Solo < Formula
             begin
               Process.kill("TERM", wait_thread.pid)
             rescue Errno::ESRCH => e
-              ohai "Cache image pull process already exited before TERM: #{e.message}"
+              opoo "Cache image pull process already exited before TERM: #{e.message}"
             end
             sleep 2
             begin
               Process.kill("KILL", wait_thread.pid)
             rescue Errno::ESRCH => e
-              ohai "Cache image pull process already exited before KILL: #{e.message}"
+              opoo "Cache image pull process already exited before KILL: #{e.message}"
             end
             status = wait_thread.value
             break
