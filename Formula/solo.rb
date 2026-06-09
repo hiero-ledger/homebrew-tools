@@ -446,7 +446,7 @@ class Solo < Formula
         command_result = Timeout.timeout(diagnostics_timeout_seconds) { Open3.capture2e(*command) }
         output = command_result[0]
         status = command_result[1]
-        print output unless output.to_s.empty?
+        puts output unless output.to_s.empty?
         if status.success?
           diagnostics_collected = true
           break
