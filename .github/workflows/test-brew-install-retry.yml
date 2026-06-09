@@ -30,6 +30,7 @@ jobs:
       HOMEBREW_NO_AUTO_UPDATE: "1"
       HOMEBREW_NO_INSTALL_CLEANUP: "1"
       HOMEBREW_NO_SANDBOX_LINUX: "1"
+      HOMEBREW_NO_SOLO_CACHE: "1"
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
@@ -43,7 +44,9 @@ jobs:
         uses: Homebrew/actions/setup-homebrew@9ceb7934560eb61d131dde205a6c2d77b2e1529d # master
 
       - name: Tap Local Formula
-        run: brew tap --custom-remote hiero-ledger/tools "$GITHUB_WORKSPACE"
+        run: |
+          brew tap --custom-remote hiero-ledger/tools "$GITHUB_WORKSPACE"
+          brew trust --tap hiero-ledger/tools
 
       - name: Resolve timeout command
         shell: bash
