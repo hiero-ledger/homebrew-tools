@@ -344,9 +344,15 @@ class Solo < Formula
 
     require "open3"
 
-    timeout_seconds = Integer(ENV.fetch("HOMEBREW_SOLO_CACHE_PULL_TIMEOUT", "1800"))
+    timeout_seconds = begin
+      Integer(ENV.fetch("HOMEBREW_SOLO_CACHE_PULL_TIMEOUT", "1800"))
+    rescue ArgumentError, TypeError
+      opoo "Invalid HOMEBREW_SOLO_CACHE_PULL_TIMEOUT value; using default timeout of 1800s."
+      1800
+    end
     timeout_seconds = 1800 if timeout_seconds <= 0
     progress_interval_seconds = 30
+    read_chunk_size = 65_536
     started_at = Time.now
     last_progress_log_at = started_at
     status = nil
@@ -355,7 +361,7 @@ class Solo < Formula
     ohai "Pre-pulling default Solo cache images..."
     Open3.popen2e(solo_bin.to_s, "cache", "image", "pull") do |_stdin, output, wait_thread|
       loop do
-        chunk = output.read_nonblock(65_536, exception: false)
+        chunk = output.read_nonblock(read_chunk_size, exception: false)
         case chunk
         when :wait_readable
           elapsed_seconds = (Time.now - started_at).to_i
