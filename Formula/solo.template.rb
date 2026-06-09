@@ -404,6 +404,7 @@ class Solo < Formula
     end
 
     if timed_out
+      collect_diagnostic_logs(solo_bin)
       opoo <<~EOS
         ATTENTION: `solo cache image pull` timed out after #{timeout_seconds}s.
         Homebrew install will continue. You can retry manually any time with:
@@ -428,6 +429,35 @@ class Solo < Formula
       You can run it manually any time with:
         solo cache image pull
     EOS
+  end
+
+  def collect_diagnostic_logs(solo_bin)
+    require "timeout"
+
+    diagnostics_timeout_seconds = 60
+    diagnostics_commands = [
+      [solo_bin.to_s, "diagnostic", "logs"],
+      [solo_bin.to_s, "diagnostics", "logs"],
+    ]
+
+    diagnostics_commands.each do |command|
+      begin
+        ohai "Collecting Solo diagnostic logs with `#{command.join(' ')}`..."
+        output, status = Timeout.timeout(diagnostics_timeout_seconds) { Open3.capture2e(*command) }
+        print output unless output.to_s.empty?
+        return if status.success?
+
+        opoo <<~EOS
+          ATTENTION: `#{command.join(' ')}` exited with status #{status.exitstatus || "unknown"}.
+        EOS
+      rescue Timeout::Error
+        opoo "ATTENTION: `#{command.join(' ')}` timed out after #{diagnostics_timeout_seconds}s."
+      rescue StandardError => e
+        opoo "ATTENTION: Could not run `#{command.join(' ')}` (#{e.message})."
+      end
+    end
+
+    opoo "ATTENTION: Unable to collect Solo diagnostic logs automatically."
   end
 
   def detect_solo_version_at(path)
