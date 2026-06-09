@@ -438,6 +438,7 @@ class Solo < Formula
       [solo_bin.to_s, "diagnostic", "logs"],
       [solo_bin.to_s, "diagnostics", "logs"],
     ]
+    diagnostics_collected = false
 
     diagnostics_commands.each do |command|
       begin
@@ -446,7 +447,10 @@ class Solo < Formula
         output = command_result[0]
         status = command_result[1]
         print output unless output.to_s.empty?
-        return if status.success?
+        if status.success?
+          diagnostics_collected = true
+          break
+        end
 
         opoo <<~EOS
           ATTENTION: `#{command.join(' ')}` exited with status #{status.exitstatus || "unknown"}.
@@ -458,7 +462,7 @@ class Solo < Formula
       end
     end
 
-    opoo "ATTENTION: Unable to collect Solo diagnostic logs automatically."
+    opoo "ATTENTION: Unable to collect Solo diagnostic logs automatically." unless diagnostics_collected
   end
 
   def detect_solo_version_at(path)
