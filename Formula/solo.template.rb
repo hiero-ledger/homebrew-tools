@@ -424,7 +424,7 @@ class Solo < Formula
     end
 
     ohai "Completed `solo cache image pull`."
-  rescue StandardError => e
+  rescue LoadError, StandardError => e
     opoo <<~EOS
       ATTENTION: Could not pre-pull Solo cache images during install (#{e.message}).
       You can run it manually any time with:
