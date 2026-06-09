@@ -350,7 +350,7 @@ class Solo < Formula
       opoo "Invalid HOMEBREW_SOLO_CACHE_PULL_TIMEOUT value; using default timeout of 1800s."
       1800
     end
-    timeout_seconds = 1800 if timeout_seconds <= 0
+    timeout_seconds = 1800 if timeout_seconds < 1
     progress_interval_seconds = 30
     read_chunk_size = 65_536
     graceful_shutdown_wait_seconds = 2
