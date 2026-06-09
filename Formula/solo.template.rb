@@ -383,7 +383,8 @@ class Solo < Formula
                 opoo "Cache image pull process already exited before KILL: #{e.message}"
               end
             end
-            status = wait_thread.value
+            wait_thread.join(graceful_shutdown_wait_seconds)
+            status = wait_thread.value unless wait_thread.alive?
             break
           end
 
