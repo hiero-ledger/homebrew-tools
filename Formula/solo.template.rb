@@ -343,6 +343,7 @@ class Solo < Formula
     end
 
     require "open3"
+    require "timeout"
 
     timeout_seconds = begin
       Integer(ENV.fetch("HOMEBREW_SOLO_CACHE_PULL_TIMEOUT", "1800"))
@@ -432,8 +433,6 @@ class Solo < Formula
   end
 
   def collect_diagnostic_logs(solo_bin)
-    require "timeout"
-
     diagnostics_timeout_seconds = 60
     diagnostics_commands = [
       [solo_bin.to_s, "diagnostic", "logs"],
@@ -443,7 +442,9 @@ class Solo < Formula
     diagnostics_commands.each do |command|
       begin
         ohai "Collecting Solo diagnostic logs with `#{command.join(' ')}`..."
-        output, status = Timeout.timeout(diagnostics_timeout_seconds) { Open3.capture2e(*command) }
+        command_result = Timeout.timeout(diagnostics_timeout_seconds) { Open3.capture2e(*command) }
+        output = command_result[0]
+        status = command_result[1]
         print output unless output.to_s.empty?
         return if status.success?
 
