@@ -119,6 +119,7 @@ jobs:
       - name: Install old solo via brew
         if: matrix.scenario == 'brew'
         run: |
+          brew trust --formula hiero-ledger/tools/solo
           if [ -n "${OLD_SOLO_VERSION}" ]; then
             brew install hiero-ledger/tools/solo@${OLD_SOLO_VERSION}
             brew link --overwrite solo@${OLD_SOLO_VERSION} || true
