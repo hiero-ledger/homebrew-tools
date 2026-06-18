@@ -92,6 +92,12 @@ jobs:
       - name: Brew test solo
         run: brew test ${{ steps.formula.outputs.formula }}
 
+      - name: Test one-shot deploy and destroy
+        run: |
+          solo one-shot single deploy
+
+          solo one-shot single destroy
+
       - name: Send Slack Notification on Failure
         if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' && !cancelled() && failure() }}
         uses: rtCamp/action-slack-notify@e31e87e03dd19038e411e38ae27cbad084a90661 # v2.3.3
