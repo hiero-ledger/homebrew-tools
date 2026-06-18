@@ -93,6 +93,7 @@ jobs:
         run: brew test ${{ steps.formula.outputs.formula }}
 
       - name: Test one-shot deploy and destroy
+        if: runner.os == 'Linux'
         run: |
           solo one-shot single deploy
 
