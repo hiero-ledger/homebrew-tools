@@ -92,40 +92,12 @@ jobs:
       - name: Brew test solo
         run: brew test ${{ steps.formula.outputs.formula }}
 
-      - name: Setup one-shot test dependencies
-        if: runner.os == 'Linux'
-        run: |
-          set -euo pipefail
-          brew install kind kubernetes-cli helm
-          docker info
-
       - name: Test one-shot deploy and destroy
         if: runner.os == 'Linux'
         run: |
-          set -euo pipefail
-
-          suffix="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          deployment="solo-brew-${suffix}"
-          namespace="${deployment}"
-          cluster_ref="${deployment}"
-          cluster_name="${deployment}"
-
-          cleanup() {
-            solo one-shot single destroy \
-              --deployment "${deployment}" \
-              --quiet-mode || true
-            kind delete cluster --name "${cluster_name}" || true
-          }
-          trap cleanup EXIT
-
-          kind create cluster --name "${cluster_name}"
-
           solo one-shot single deploy
 
           solo one-shot single destroy
-
-          trap - EXIT
-          kind delete cluster --name "${cluster_name}"
 
       - name: Send Slack Notification on Failure
         if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' && !cancelled() && failure() }}
