@@ -29,6 +29,8 @@ jobs:
     env:
       HOMEBREW_NO_AUTO_UPDATE: "1"
       HOMEBREW_NO_INSTALL_CLEANUP: "1"
+      HOMEBREW_NO_SANDBOX_LINUX: "1"
+      HOMEBREW_NO_SOLO_CACHE: "1"
       SOLO_VERSION: "${{ github.event.inputs.solo-version || '' }}"
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -43,7 +45,9 @@ jobs:
         uses: Homebrew/actions/setup-homebrew@9ceb7934560eb61d131dde205a6c2d77b2e1529d # master
 
       - name: Tap local formula
-        run: brew tap --custom-remote hiero-ledger/tools "$GITHUB_WORKSPACE"
+        run: |
+          brew tap --custom-remote hiero-ledger/tools "$GITHUB_WORKSPACE"
+          brew trust --tap hiero-ledger/tools
 
       - name: Determine formula name
         id: formula
