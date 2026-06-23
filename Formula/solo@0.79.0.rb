@@ -1,10 +1,10 @@
-class SoloAT0770 < Formula
+class SoloAT0790 < Formula
   desc "An opinionated CLI tool to deploy and manage standalone test networks."
   homepage "https://github.com/hiero-ledger/solo"
 
-  url "https://registry.npmjs.org/@hashgraph/solo/-/solo-0.77.0.tgz"
-  sha256 "c6a11d356eed86cbfd052a06de4f7a7d99583deb7baac569d400bdb3af3bc61f"
-  version "0.77.0"
+  url "https://registry.npmjs.org/@hashgraph/solo/-/solo-0.79.0.tgz"
+  sha256 "9776b7b4ec89d8e49843514f4273bffb43d05f3016ec3d1afdd924188ed7ae1f"
+  version "0.79.0"
 
   depends_on "node"
   link_overwrite "bin/solo"
@@ -289,7 +289,7 @@ class SoloAT0770 < Formula
     end
     bin.install_symlink Dir["#{libexec}/bin/*"]
 
-    # Step 4b: Warm default SoloAT0770 images to reduce first-run setup time.
+    # Step 4b: Warm default SoloAT0790 images to reduce first-run setup time.
     pull_default_cache_images unless ENV.key?("HOMEBREW_NO_SOLO_CACHE")
   end
 
@@ -342,15 +342,127 @@ class SoloAT0770 < Formula
       return
     end
 
-    ohai "Pre-pulling default SoloAT0770 cache images..."
-    system solo_bin, "cache", "image", "pull"
+    require "open3"
+    require "timeout"
+
+    timeout_seconds = begin
+      Integer(ENV.fetch("HOMEBREW_SOLO_CACHE_PULL_TIMEOUT", "1800"))
+    rescue ArgumentError, TypeError
+      opoo "Invalid HOMEBREW_SOLO_CACHE_PULL_TIMEOUT value; using default timeout of 1800s."
+      1800
+    end
+    timeout_seconds = 1800 if timeout_seconds < 1
+    progress_interval_seconds = 30
+    read_chunk_size = 65_536
+    graceful_shutdown_wait_seconds = 2
+    started_at = Time.now
+    last_progress_log_at = started_at
+    status = nil
+    timed_out = false
+
+    ohai "Pre-pulling default SoloAT0790 cache images..."
+    Open3.popen2e(solo_bin.to_s, "cache", "image", "pull") do |_stdin, output, wait_thread|
+      loop do
+        chunk = output.read_nonblock(read_chunk_size, exception: false)
+        case chunk
+        when :wait_readable
+          elapsed_seconds = (Time.now - started_at).to_i
+          if elapsed_seconds >= timeout_seconds
+            timed_out = true
+            if wait_thread.alive?
+              begin
+                Process.kill("TERM", wait_thread.pid)
+              rescue Errno::ESRCH => e
+                opoo "Cache image pull process already exited before TERM: #{e.message}"
+              end
+            end
+            sleep graceful_shutdown_wait_seconds
+            if wait_thread.alive?
+              begin
+                Process.kill("KILL", wait_thread.pid)
+              rescue Errno::ESRCH => e
+                opoo "Cache image pull process already exited before KILL: #{e.message}"
+              end
+            end
+            wait_thread.join(graceful_shutdown_wait_seconds)
+            status = wait_thread.value unless wait_thread.alive?
+            break
+          end
+
+          if (Time.now - last_progress_log_at) >= progress_interval_seconds
+            ohai "Still pre-pulling SoloAT0790 cache images... #{elapsed_seconds}s elapsed."
+            last_progress_log_at = Time.now
+          end
+
+          sleep 1
+        when nil
+          status = wait_thread.value
+          break
+        else
+          print chunk
+        end
+      end
+    end
+
+    if timed_out
+      collect_diagnostic_logs(solo_bin)
+      opoo <<~EOS
+        ATTENTION: `solo cache image pull` timed out after #{timeout_seconds}s.
+        Homebrew install will continue. You can retry manually any time with:
+          solo cache image pull
+      EOS
+      return
+    end
+
+    unless status&.success?
+      opoo <<~EOS
+        ATTENTION: `solo cache image pull` exited with status #{status&.exitstatus || "unknown"}.
+        Homebrew install will continue. You can retry manually any time with:
+          solo cache image pull
+      EOS
+      return
+    end
+
     ohai "Completed `solo cache image pull`."
-  rescue BuildError => e
+  rescue LoadError, StandardError => e
     opoo <<~EOS
-      ATTENTION: Could not pre-pull SoloAT0770 cache images during install (#{e.message}).
+      ATTENTION: Could not pre-pull SoloAT0790 cache images during install (#{e.message}).
       You can run it manually any time with:
         solo cache image pull
     EOS
+  end
+
+  def collect_diagnostic_logs(solo_bin)
+    diagnostics_timeout_seconds = 60
+    diagnostics_commands = [
+      [solo_bin.to_s, "diagnostic", "logs"],
+      [solo_bin.to_s, "diagnostics", "logs"],
+    ]
+    diagnostics_collected = false
+
+    diagnostics_commands.each do |command|
+      begin
+        ohai "Collecting SoloAT0790 diagnostic logs with `#{command.join(' ')}`..."
+        command_result = Timeout.timeout(diagnostics_timeout_seconds) { Open3.capture2e(*command) }
+        output = command_result[0]
+        status = command_result[1]
+        puts output unless output.to_s.empty?
+        if status.success?
+          diagnostics_collected = true
+          break
+        end
+
+        opoo <<~EOS
+          ATTENTION: `#{command.join(' ')}` exited with status #{status.exitstatus || "unknown"}.
+        EOS
+      rescue Timeout::Error
+        opoo "ATTENTION: `#{command.join(' ')}` timed out after #{diagnostics_timeout_seconds}s."
+      rescue StandardError => e
+        opoo "ATTENTION: Could not run `#{command.join(' ')}` (#{e.message})."
+      end
+    end
+
+    opoo "ATTENTION: Unable to collect SoloAT0790 diagnostic logs automatically." unless diagnostics_collected
   end
 
   def detect_solo_version_at(path)
