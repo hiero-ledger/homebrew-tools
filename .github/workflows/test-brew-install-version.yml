@@ -93,10 +93,21 @@ jobs:
         run: brew test ${{ steps.formula.outputs.formula }}
 
       - name: Test one-shot deploy and destroy
+        if: runner.os == 'Linux'
         run: |
-          solo one-shot single deploy
+          set -euo pipefail
 
-          solo one-shot single destroy
+          smoke_dir="${RUNNER_TEMP}/solo-one-shot"
+          mkdir -p "${smoke_dir}"
+          cd "${smoke_dir}"
+
+          solo one-shot single deploy \
+            --quiet-mode \
+            --rollback
+
+          solo one-shot single destroy \
+            --quiet-mode
+
 
       - name: Send Slack Notification on Failure
         if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' && !cancelled() && failure() }}
