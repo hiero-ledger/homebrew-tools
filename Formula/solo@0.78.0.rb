@@ -1,10 +1,10 @@
-class SoloAT0790 < Formula
+class SoloAT0780 < Formula
   desc "An opinionated CLI tool to deploy and manage standalone test networks."
   homepage "https://github.com/hiero-ledger/solo"
 
-  url "https://registry.npmjs.org/@hashgraph/solo/-/solo-0.79.0.tgz"
-  sha256 "9776b7b4ec89d8e49843514f4273bffb43d05f3016ec3d1afdd924188ed7ae1f"
-  version "0.79.0"
+  url "https://registry.npmjs.org/@hashgraph/solo/-/solo-0.78.0.tgz"
+  sha256 "546fc999e4b1789516c39f69f8d9a8504a3d6cc7312881af251a76c9bf1ebab3"
+  version "0.78.0"
 
   depends_on "node"
   link_overwrite "bin/solo"
@@ -289,7 +289,7 @@ class SoloAT0790 < Formula
     end
     bin.install_symlink Dir["#{libexec}/bin/*"]
 
-    # Step 4b: Warm default SoloAT0790 images to reduce first-run setup time.
+    # Step 4b: Warm default SoloAT0780 images to reduce first-run setup time.
     pull_default_cache_images unless ENV.key?("HOMEBREW_NO_SOLO_CACHE")
   end
 
@@ -360,7 +360,7 @@ class SoloAT0790 < Formula
     status = nil
     timed_out = false
 
-    ohai "Pre-pulling default SoloAT0790 cache images..."
+    ohai "Pre-pulling default SoloAT0780 cache images..."
     Open3.popen2e(solo_bin.to_s, "cache", "image", "pull") do |_stdin, output, wait_thread|
       loop do
         chunk = output.read_nonblock(read_chunk_size, exception: false)
@@ -390,7 +390,7 @@ class SoloAT0790 < Formula
           end
 
           if (Time.now - last_progress_log_at) >= progress_interval_seconds
-            ohai "Still pre-pulling SoloAT0790 cache images... #{elapsed_seconds}s elapsed."
+            ohai "Still pre-pulling SoloAT0780 cache images... #{elapsed_seconds}s elapsed."
             last_progress_log_at = Time.now
           end
 
@@ -426,7 +426,7 @@ class SoloAT0790 < Formula
     ohai "Completed `solo cache image pull`."
   rescue LoadError, StandardError => e
     opoo <<~EOS
-      ATTENTION: Could not pre-pull SoloAT0790 cache images during install (#{e.message}).
+      ATTENTION: Could not pre-pull SoloAT0780 cache images during install (#{e.message}).
       You can run it manually any time with:
         solo cache image pull
     EOS
@@ -442,7 +442,7 @@ class SoloAT0790 < Formula
 
     diagnostics_commands.each do |command|
       begin
-        ohai "Collecting SoloAT0790 diagnostic logs with `#{command.join(' ')}`..."
+        ohai "Collecting SoloAT0780 diagnostic logs with `#{command.join(' ')}`..."
         command_result = Timeout.timeout(diagnostics_timeout_seconds) { Open3.capture2e(*command) }
         output = command_result[0]
         status = command_result[1]
@@ -462,7 +462,7 @@ class SoloAT0790 < Formula
       end
     end
 
-    opoo "ATTENTION: Unable to collect SoloAT0790 diagnostic logs automatically." unless diagnostics_collected
+    opoo "ATTENTION: Unable to collect SoloAT0780 diagnostic logs automatically." unless diagnostics_collected
   end
 
   def detect_solo_version_at(path)
