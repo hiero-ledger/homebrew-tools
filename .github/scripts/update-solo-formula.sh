@@ -120,7 +120,7 @@ cp "${TEMPLATE}" "${CURRENT_FORMULA}"
 
 # Download the npm tarball for the target version and compute its
 # SHA-256 hash. This value is written into the formula's sha256 field.
-NEW_URL="https://registry.npmjs.org/@hashgraph/solo/-/solo-${NEW_VERSION}.tgz"
+NEW_URL="https://registry.npmjs.org/@hiero-ledger/solo/-/solo-${NEW_VERSION}.tgz"
 echo "Downloading ${NEW_URL} to compute sha256..."
 if command -v sha256sum >/dev/null 2>&1; then
   # Linux / GNU coreutils: use sha256sum
