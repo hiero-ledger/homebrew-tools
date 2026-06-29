@@ -19,6 +19,7 @@ Maintainers are assigned the following scopes in this repository:
 | Nathan Klick          | nathanklick        |       |      |            |       | Hashgraph           |
 | Roger Barker          | rbarker-dev        |       |      |            |       | Hashgraph           |
 | Andrew Brandt         | andrewb1269        |       |      |            |       | Hashgraph           |
+| Jeromy Cannon         | jeromy-cannon      |       |      |            |       | Hashgraph           |
 
 ## Emeritus Maintainers
 
