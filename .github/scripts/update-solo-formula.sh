@@ -10,6 +10,16 @@
 #
 set -euo pipefail
 
+_VERSIONED_FORMULA_CREATED=""
+_cleanup_on_error() {
+  if [[ -n "${_VERSIONED_FORMULA_CREATED}" && -f "${_VERSIONED_FORMULA_CREATED}" ]]; then
+    echo "ERROR: Script failed. Removing partially-written ${_VERSIONED_FORMULA_CREATED}." >&2
+    rm -f "${_VERSIONED_FORMULA_CREATED}"
+  fi
+  echo "Run 'git restore Formula/' to reset to a known-good state." >&2
+}
+trap '_cleanup_on_error' ERR
+
 # Resolve NEW_VERSION from environment or first positional argument.
 # This allows both:
 #   NEW_VERSION=0.50.0 .github/scripts/update-solo-formula.sh
@@ -83,7 +93,9 @@ sedi() {
 # `version "x.y.z"` line. This is used to:
 #   - Guard against bumping to the same version.
 #   - Name the pinned formula file solo@<current_version>.rb.
-CURRENT_VERSION=$(grep -E '^[[:space:]]*version[[:space:]]+"' "${CURRENT_FORMULA}" | sed -E 's/^[[:space:]]*version[[:space:]]+"([^"]+)".*/\1/')
+CURRENT_VERSION=$(grep -E '^[[:space:]]*version[[:space:]]+"' "${CURRENT_FORMULA}" \
+  | head -n 1 \
+  | sed -E 's/^[[:space:]]*version[[:space:]]+"([^"]+)".*/\1/')
 if [[ -z "${CURRENT_VERSION}" ]]; then
   echo "Could not parse current version from ${CURRENT_FORMULA}" >&2
   exit 1
@@ -111,7 +123,8 @@ CURRENT_SUFFIX=$(echo "${CURRENT_VERSION}" | tr -d '.')
 # Copy previous latest one to a pinned version one.
 # Class name suffix (Solo -> SoloAT${CURRENT_SUFFIX}).
 cp "${CURRENT_FORMULA}" "${VERSIONED_FORMULA}"
-sedi "s/Solo/SoloAT${CURRENT_SUFFIX}/g" "${VERSIONED_FORMULA}"
+_VERSIONED_FORMULA_CREATED="${VERSIONED_FORMULA}"
+sedi "s/^class Solo </class SoloAT${CURRENT_SUFFIX} </" "${VERSIONED_FORMULA}"
 
 echo "Created pinned formula ${VERSIONED_FORMULA}"
 
@@ -124,10 +137,10 @@ NEW_URL="https://registry.npmjs.org/@hiero-ledger/solo/-/solo-${NEW_VERSION}.tgz
 echo "Downloading ${NEW_URL} to compute sha256..."
 if command -v sha256sum >/dev/null 2>&1; then
   # Linux / GNU coreutils: use sha256sum
-  NEW_SHA256=$(curl -fsSL "${NEW_URL}" | sha256sum | awk '{print $1}')
+  NEW_SHA256=$(curl -fsSL --retry 3 --retry-delay 2 --max-time 120 "${NEW_URL}" | sha256sum | awk '{print $1}')
 elif command -v shasum >/dev/null 2>&1; then
   # macOS: use shasum -a 256
-  NEW_SHA256=$(curl -fsSL "${NEW_URL}" | shasum -a 256 | awk '{print $1}')
+  NEW_SHA256=$(curl -fsSL --retry 3 --retry-delay 2 --max-time 120 "${NEW_URL}" | shasum -a 256 | awk '{print $1}')
 else
   echo "Neither sha256sum nor shasum is available" >&2
   exit 1

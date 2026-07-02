@@ -5,11 +5,14 @@ class Solo < Formula
   url "https://registry.npmjs.org/@hiero-ledger/solo/-/solo-0.80.0.tgz"
   sha256 "c0c29eed3a9826cc0003e189ad32435f12b60d0d20cb886478ef75997fa64d91"
   version "0.80.0"
+  license "Apache-2.0"
+  bottle :unneeded
 
   depends_on "node"
   link_overwrite "bin/solo"
 
   def install
+    require "set"
     # Step 0: Validate environment prerequisites before modifying the system.
     odie "npm was not found in PATH; install Node.js first." if which("npm").nil?
 
@@ -91,7 +94,9 @@ class Solo < Formula
     end
 
     # Step 2: Find and remove ALL solo binaries in PATH (npm global, nvm, custom prefixes, etc.).
-    solo_binaries_in_path = `which -a solo 2>/dev/null`.strip.split("\n").reject(&:empty?)
+    warned_nvm_paths = Set.new
+    solo_binaries_in_path = Utils.safe_popen_read("which", "-a", "solo")
+                                 .strip.split("\n").reject(&:empty?)
     brew_solo_path = (HOMEBREW_PREFIX/"bin/solo").to_s
     solo_binaries_in_path.each do |solo_path|
       next if solo_path == brew_solo_path
@@ -114,6 +119,7 @@ class Solo < Formula
             npm uninstall -g --prefix #{npm_prefix} @hiero-ledger/solo
           Note: after install, follow the `hash -r` verification steps shown in Caveats.
         EOS
+        warned_nvm_paths << solo_path
         next
       end
 
@@ -156,7 +162,7 @@ class Solo < Formula
     end
 
     # Step 2b: Detect nvm-managed solo installs and provide manual cleanup guidance.
-    detect_nvm_solo_paths.each do |solo_path|
+    detect_nvm_solo_paths.reject { |p| warned_nvm_paths.include?(p) }.each do |solo_path|
       old_version = detect_solo_version_at(solo_path)
       npm_prefix = File.expand_path("..", File.dirname(solo_path))
       opoo <<~EOS
@@ -183,7 +189,6 @@ class Solo < Formula
     npm_packages.each do |pkg|
       pkg_scope, pkg_name = pkg.split("/")
       pkg_path = File.join(npm_root, pkg_scope, pkg_name)
-      brew_pkg_path = File.join(brew_prefix_root, pkg_scope, pkg_name)
 
       if !npm_root.empty? && File.symlink?(pkg_path)
         opoo <<~EOS
@@ -314,7 +319,7 @@ class Solo < Formula
 
     return if allow_prefixes.any? { |prefix| target.start_with?(prefix) }
 
-    odie <<~EOS
+    opoo <<~EOS
       ATTENTION: Found an existing solo binary at #{brew_bin_solo}.
       Target: #{target}
       Please remove it before installing: rm '#{brew_bin_solo}'
@@ -506,5 +511,6 @@ class Solo < Formula
 
   test do
     assert_match(/^Usage:\s+solo\b/m, shell_output("#{bin}/solo --help"))
+    assert_match version.to_s, shell_output("#{bin}/solo --version 2>&1")
   end
 end

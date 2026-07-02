@@ -48,6 +48,9 @@ jobs:
           NEW_VERSION: ${{ inputs.version || github.event.inputs.version }}
         run: bash .github/scripts/update-solo-formula.sh
 
+      - name: Audit generated formulas
+        run: brew audit --formula "${FORMULA_DIR:-Formula}/solo.rb" || true
+
       - name: Commit Version Changes
         id: git-commit
         uses: step-security/add-and-commit@c02fc48d1a9e30e6955e3c170b06c51ceb2d26df # v9.1.5

@@ -1,15 +1,15 @@
-require "language/node"
 class HieroCli < Formula
   desc "Command-line interface for interacting with the Hedera network"
   homepage "https://github.com/hiero-ledger/hiero-cli"
   url "https://registry.npmjs.org/@hiero-ledger/hiero-cli/-/hiero-cli-1.0.0.tgz"
   sha256 "5c41e74b05c86c428cc563cdc9c9b611403254200bda79aa5711417b747f42e1"
   license "Apache-2.0"
+  bottle :unneeded
 
   depends_on "node"
 
   def install
-    system "npm", "install", *Language::Node.std_npm_install_args(libexec)
+    system "npm", "install", *std_npm_args
     bin.install_symlink Dir["#{libexec}/bin/*"]
   end
 
@@ -20,6 +20,6 @@ class HieroCli < Formula
   end
 
   test do
-    system "#{bin}/hcli", "--help"
+    assert_match(/hiero-cli|hcli/i, shell_output("#{bin}/hcli --help"))
   end
 end

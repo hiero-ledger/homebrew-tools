@@ -1,0 +1,5 @@
+# Normalize line endings
+* text=auto
+
+# Versioned frozen formulas — treat as generated (hidden in PR diffs by default)
+Formula/solo@*.rb linguist-generated=true
