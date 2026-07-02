@@ -5,5 +5,17 @@
 ### GPG template
 secring.*
 
-### Ignore all Jetbrains IDE files
+### Jetbrains IDE files
 .idea/
+
+### macOS
+.DS_Store
+.AppleDouble
+*.swp
+
+### Ruby
+*.gem
+.bundle/
+
+### Homebrew
+*.bottle.tar.gz

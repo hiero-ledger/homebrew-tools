@@ -1,0 +1,33 @@
+name: Version Bump Request
+description: Request a new solo version be published to this tap
+labels: ["version-bump"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: New version
+      placeholder: "0.81.0"
+    validations:
+      required: true
+  - type: input
+    id: release-notes
+    attributes:
+      label: Release notes URL
+      placeholder: "https://github.com/hiero-ledger/solo/releases/tag/v0.81.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: urgency
+    attributes:
+      label: Urgency
+      options:
+        - Low — next regular update window is fine
+        - Medium — please prioritize within a few days
+        - High — blocking users, needs urgent attention
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Any notes for the maintainer (breaking changes, known issues, etc.)

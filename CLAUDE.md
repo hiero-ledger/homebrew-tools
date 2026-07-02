@@ -57,6 +57,17 @@ brew trust --tap hiero-ledger/tools
 
 `HOMEBREW_NO_SOLO_CACHE=1` is always set in CI to skip the `solo cache image pull` step (which would time out without a running Docker daemon).
 
+## Workflow Secrets and Variables
+
+Required GitHub Actions secrets:
+- `GH_ACCESS_TOKEN` — personal access token with repo write access (used for checkout and PR creation)
+- `GPG_KEY_CONTENTS` — PEM-encoded GPG private key for commit signing
+- `GPG_KEY_PASSPHRASE` — passphrase for the GPG key
+
+Optional repository variables (override defaults from GPG key):
+- `GIT_USER_NAME` — committer name for automated commits
+- `GIT_USER_EMAIL` — committer email for automated commits
+
 ## solo.rb Install Logic
 
 The `install` method handles a complex pre-install cleanup sequence before running `npm install`:
@@ -67,4 +78,37 @@ The `install` method handles a complex pre-install cleanup sequence before runni
 4. **Step 3** — Remove global npm links/installs for `@hiero-ledger/solo` and `@hashgraph/solo`
 5. **Step 4** — Run `npm install` with system CA certs injected for corporate proxy compatibility, then warm Docker image cache via `solo cache image pull`
 
-`post_install` provides a final guard: if a non-Homebrew binary is still present at `$HOMEBREW_PREFIX/bin/solo`, it calls `odie` to abort with instructions.
+`post_install` provides a final guard: if a non-Homebrew binary is still present at `$HOMEBREW_PREFIX/bin/solo`, it emits a warning (`opoo`) with removal instructions. It does NOT call `odie` — that would mark the keg broken even though the install succeeded.
+
+## Known Pitfalls
+
+Do not reintroduce these patterns:
+
+- **`Language::Node`** — removed from Homebrew in 2023. Use `std_npm_args` instead (see `hiero-cli.rb`).
+- **Backtick subprocesses** — use `Utils.safe_popen_read` or `shell_output`. Backticks bypass Homebrew's subprocess sandbox.
+- **`odie` in `post_install`** — `odie` signals a fatal install failure and marks the keg broken. Use `opoo` + `return` for warnings that don't block the install.
+- **`s/Solo/SoloAT.../g` in the update script** — this corrupts user-facing strings inside `ohai`/`opoo` calls. Only the class declaration line needs changing: `s/^class Solo </class SoloAT${SUFFIX} </`.
+- **Missing `license` field** — `brew audit` requires it. All new formulas need `license "Apache-2.0"`.
+- **Missing `bottle :unneeded`** — add to npm-based formulas to signal no compiled artifact.
+- **Hand-editing versioned `solo@*.rb` files** — these are frozen historical snapshots; only the update script should produce them.
+
+## Formula Best Practices Checklist
+
+Before opening a PR touching any formula:
+
+```bash
+brew audit --formula Formula/solo.rb
+brew audit --formula Formula/hiero-cli.rb
+HOMEBREW_NO_SOLO_CACHE=1 brew install --build-from-source Formula/solo.rb
+brew test hiero-ledger/tools/solo
+```
+
+## Update Script Invariants
+
+If `update-solo-formula.sh` fails mid-run, it will attempt to remove any partially-written versioned formula. If it cannot clean up automatically, reset with:
+
+```bash
+git restore Formula/
+```
+
+The trap fires on any `ERR` (due to `set -euo pipefail`). Do not remove the trap or the `_VERSIONED_FORMULA_CREATED` sentinel.

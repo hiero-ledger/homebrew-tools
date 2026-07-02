@@ -1,0 +1,4 @@
+# Formula changes require a maintainer review
+/Formula/solo.rb          @hiero-ledger/homebrew-maintainers
+/Formula/solo.template.rb @hiero-ledger/homebrew-maintainers
+/.github/                 @hiero-ledger/homebrew-maintainers
