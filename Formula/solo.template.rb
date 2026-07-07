@@ -289,6 +289,10 @@ class Solo < Formula
     end
     bin.install_symlink Dir["#{libexec}/bin/*"]
 
+    # Step 4a: Reset the Solo home directory so stale config, logs, keys, and other per-deployment
+    # state do not carry over between installs.
+    reset_solo_home_directory
+
     # Step 4b: Warm default Solo images to reduce first-run setup time.
     pull_default_cache_images unless ENV.key?("HOMEBREW_NO_SOLO_CACHE")
   end
@@ -334,6 +338,16 @@ class Solo < Formula
   end
 
   private
+
+  def reset_solo_home_directory
+    require "fileutils"
+    solo_home = ENV["SOLO_HOME"]
+    solo_home = File.join(ENV["HOME"] || Dir.home, ".solo") if solo_home.nil? || solo_home.empty?
+    FileUtils.rm_rf(solo_home)
+    ohai "Reset Solo home directory: #{solo_home}"
+  rescue StandardError => e
+    opoo "Could not reset Solo home directory (#{e.message}). Continuing install."
+  end
 
   def pull_default_cache_images
     solo_bin = libexec/"bin/solo"
