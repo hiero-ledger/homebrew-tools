@@ -343,7 +343,16 @@ class Solo < Formula
     end
 
     require "open3"
+    require "etc"
     require "timeout"
+
+    # Homebrew sandboxes HOME to a temp dir during install. Resolve the real user home so
+    # the cached images land in ~/.solo/cache (the same path solo uses at runtime) rather
+    # than the temp sandbox that is discarded after the formula finishes installing.
+    real_home = [
+      ENV["HOMEBREW_ORIGINAL_HOME"],
+      (Etc.getpwuid(Process.uid).dir rescue nil),
+    ].compact.find { |h| !h.empty? } || ENV["HOME"]
 
     timeout_seconds = begin
       Integer(ENV.fetch("HOMEBREW_SOLO_CACHE_PULL_TIMEOUT", "1800"))
@@ -361,7 +370,8 @@ class Solo < Formula
     timed_out = false
 
     ohai "Pre-pulling default Solo cache images..."
-    Open3.popen2e(solo_bin.to_s, "cache", "image", "pull") do |_stdin, output, wait_thread|
+    pull_env = {"HOME" => real_home}
+    Open3.popen2e(pull_env, solo_bin.to_s, "cache", "image", "pull") do |_stdin, output, wait_thread|
       loop do
         chunk = output.read_nonblock(read_chunk_size, exception: false)
         case chunk

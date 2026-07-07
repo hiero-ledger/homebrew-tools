@@ -14,6 +14,24 @@ Install a specific version of Solo using Homebrew:
 brew install hiero-ledger/tools/solo@<version>
 ```
 
+## Try the local checkout of this tap
+Use the helper script in this repo to copy the current local `Formula/solo.rb` into a custom tap
+and reinstall from source:
+
+```
+./scripts/reinstall-local-solo.sh [tap-name]
+```
+
+Example:
+
+```
+./scripts/reinstall-local-solo.sh "$(whoami)/tools"
+```
+
+The script derives the repository path from its own location, taps the local checkout with
+`brew tap --custom-remote`, defaults the tap name to `<current-user>/tools`, refreshes the tapped
+`solo.rb`, and runs a source reinstall.
+
 ## Contribute
 
 - To contribute, please refer to the **[Hiero-Ledger's contribution guidelines](https://github.com/hiero-ledger/.github/blob/main/CONTRIBUTING.md)**
