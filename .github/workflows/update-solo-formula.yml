@@ -21,6 +21,8 @@ permissions:
 jobs:
   update-formula:
     runs-on: hl-hbt-lin-md
+    env:
+      VERSION: ${{ inputs.version || github.event.inputs.version }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@df199fb7be9f65074067a9eb93f12bb4c5547cf2 # v2.13.3
@@ -45,7 +47,7 @@ jobs:
 
       - name: Update Homebrew solo formula
         env:
-          NEW_VERSION: ${{ inputs.version || github.event.inputs.version }}
+          NEW_VERSION: ${{ env.VERSION }}
         run: bash .github/scripts/update-solo-formula.sh
 
       - name: Commit Version Changes
@@ -57,14 +59,13 @@ jobs:
           committer_name: ${{ vars.GIT_USER_NAME || steps.gpg_key.outputs.name }}
           committer_email: ${{ vars.GIT_USER_EMAIL || steps.gpg_key.outputs.email }}
           commit: --signoff --gpg-sign
-          message: "chore: bump solo Homebrew formula to ${{ inputs.version || github.event.inputs.version }}"
-          new_branch: chore/bump-solo-homebrew-${{ inputs.version || github.event.inputs.version }}
+          message: "chore: bump solo Homebrew formula to ${{ env.VERSION }}"
+          new_branch: chore/bump-solo-homebrew-${{ env.VERSION }}
 
       - name: Create pull request
         if: steps.git-commit.outputs.committed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
-          VERSION: ${{ inputs.version || github.event.inputs.version }}
         run: |
           PR_BODY="This pull request was created automatically by the **Update Homebrew Solo Formula** workflow.
           Requested version: \`${VERSION}\`."
