@@ -1,10 +1,10 @@
-class Solo < Formula
+class SoloAT0810 < Formula
   desc "An opinionated CLI tool to deploy and manage standalone test networks."
   homepage "https://github.com/hiero-ledger/solo"
 
-  url "https://registry.npmjs.org/@hiero-ledger/solo/-/solo-0.82.0.tgz"
-  sha256 "4e4322a20fc22e751f21edc106ea37342956ade2672f12a57ed4f54a13bc8fc0"
-  version "0.82.0"
+  url "https://registry.npmjs.org/@hiero-ledger/solo/-/solo-0.81.0.tgz"
+  sha256 "3c76cac57189758d1d3acc8b0208a3e8b1c7a47556712813cf1b94a2271fb2f8"
+  version "0.81.0"
 
   depends_on "node"
   link_overwrite "bin/solo"
@@ -289,7 +289,7 @@ class Solo < Formula
     end
     bin.install_symlink Dir["#{libexec}/bin/*"]
 
-    # Step 4b: Warm default Solo images to reduce first-run setup time.
+    # Step 4b: Warm default SoloAT0810 images to reduce first-run setup time.
     pull_default_cache_images unless ENV.key?("HOMEBREW_NO_SOLO_CACHE")
   end
 
@@ -360,7 +360,7 @@ class Solo < Formula
     status = nil
     timed_out = false
 
-    ohai "Pre-pulling default Solo cache images..."
+    ohai "Pre-pulling default SoloAT0810 cache images..."
     Open3.popen2e(solo_bin.to_s, "cache", "image", "pull") do |_stdin, output, wait_thread|
       loop do
         chunk = output.read_nonblock(read_chunk_size, exception: false)
@@ -390,7 +390,7 @@ class Solo < Formula
           end
 
           if (Time.now - last_progress_log_at) >= progress_interval_seconds
-            ohai "Still pre-pulling Solo cache images... #{elapsed_seconds}s elapsed."
+            ohai "Still pre-pulling SoloAT0810 cache images... #{elapsed_seconds}s elapsed."
             last_progress_log_at = Time.now
           end
 
@@ -426,7 +426,7 @@ class Solo < Formula
     ohai "Completed `solo cache image pull`."
   rescue LoadError, StandardError => e
     opoo <<~EOS
-      ATTENTION: Could not pre-pull Solo cache images during install (#{e.message}).
+      ATTENTION: Could not pre-pull SoloAT0810 cache images during install (#{e.message}).
       You can run it manually any time with:
         solo cache image pull
     EOS
@@ -442,7 +442,7 @@ class Solo < Formula
 
     diagnostics_commands.each do |command|
       begin
-        ohai "Collecting Solo diagnostic logs with `#{command.join(' ')}`..."
+        ohai "Collecting SoloAT0810 diagnostic logs with `#{command.join(' ')}`..."
         command_result = Timeout.timeout(diagnostics_timeout_seconds) { Open3.capture2e(*command) }
         output = command_result[0]
         status = command_result[1]
@@ -462,7 +462,7 @@ class Solo < Formula
       end
     end
 
-    opoo "ATTENTION: Unable to collect Solo diagnostic logs automatically." unless diagnostics_collected
+    opoo "ATTENTION: Unable to collect SoloAT0810 diagnostic logs automatically." unless diagnostics_collected
   end
 
   def detect_solo_version_at(path)
