@@ -261,6 +261,13 @@ class Solo < Formula
     # used by SSL inspection proxies (e.g., Zscaler, Cisco Umbrella).
     npm_install_env = {}
     npm_install_env["SOLO_NO_CACHE"] = "true" if ENV.key?("HOMEBREW_NO_SOLO_CACHE")
+    # Make npm resilient to transient registry/network failures during download
+    # (e.g. "npm error network aborted" while unpacking a tarball). These map to
+    # npm's fetch-retry config; see `npm help config`.
+    npm_install_env["npm_config_fetch_retries"] = "5"
+    npm_install_env["npm_config_fetch_retry_mintimeout"] = "20000"
+    npm_install_env["npm_config_fetch_retry_maxtimeout"] = "120000"
+    npm_install_env["npm_config_fetch_timeout"] = "300000"
     if OS.mac?
       ca_bundle = buildpath/"ca-bundle.pem"
       [
@@ -285,7 +292,7 @@ class Solo < Formula
     end
 
     with_env(npm_install_env) do
-      system "npm", "install", *std_npm_args
+      install_npm_package_with_retries
     end
     bin.install_symlink Dir["#{libexec}/bin/*"]
 
@@ -334,6 +341,29 @@ class Solo < Formula
   end
 
   private
+
+  # Run `npm install` with bounded retries. npm's own fetch-retry config handles
+  # most transient failures, but a dropped connection during tarball unpack
+  # ("npm error network aborted") can still abort the whole install. Retrying with
+  # backoff lets a single `brew install` self-recover; the final attempt re-raises
+  # so a persistent failure still fails the build with npm's own error.
+  def install_npm_package_with_retries(max_attempts: 3, base_delay_seconds: 5)
+    attempt = 0
+    begin
+      attempt += 1
+      system "npm", "install", *std_npm_args
+    rescue BuildError => e
+      raise e if attempt >= max_attempts
+
+      delay = base_delay_seconds * attempt
+      opoo <<~EOS
+        npm install failed (attempt #{attempt}/#{max_attempts}): #{e.message}
+        This is usually a transient network issue. Retrying in #{delay}s...
+      EOS
+      sleep delay
+      retry
+    end
+  end
 
   def pull_default_cache_images
     solo_bin = libexec/"bin/solo"
