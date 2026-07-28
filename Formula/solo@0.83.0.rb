@@ -1,10 +1,10 @@
-class Solo < Formula
+class SoloAT0830 < Formula
   desc "An opinionated CLI tool to deploy and manage standalone test networks."
   homepage "https://github.com/hiero-ledger/solo"
 
-  url "https://registry.npmjs.org/@hiero-ledger/solo/-/solo-0.84.0.tgz"
-  sha256 "e517a118a62d1658ca478b17378eac2c986080cbcc917e6e07c77446bb51d62d"
-  version "0.84.0"
+  url "https://registry.npmjs.org/@hiero-ledger/solo/-/solo-0.83.0.tgz"
+  sha256 "78d95518cd9eeab811795d7fcea861c48d2f508fe0216f662b26722dc44992b4"
+  version "0.83.0"
 
   depends_on "node"
   link_overwrite "bin/solo"
@@ -261,13 +261,6 @@ class Solo < Formula
     # used by SSL inspection proxies (e.g., Zscaler, Cisco Umbrella).
     npm_install_env = {}
     npm_install_env["SOLO_NO_CACHE"] = "true" if ENV.key?("HOMEBREW_NO_SOLO_CACHE")
-    # Make npm resilient to transient registry/network failures during download
-    # (e.g. "npm error network aborted" while unpacking a tarball). These map to
-    # npm's fetch-retry config; see `npm help config`.
-    npm_install_env["npm_config_fetch_retries"] = "5"
-    npm_install_env["npm_config_fetch_retry_mintimeout"] = "20000"
-    npm_install_env["npm_config_fetch_retry_maxtimeout"] = "120000"
-    npm_install_env["npm_config_fetch_timeout"] = "300000"
     if OS.mac?
       ca_bundle = buildpath/"ca-bundle.pem"
       [
@@ -292,11 +285,11 @@ class Solo < Formula
     end
 
     with_env(npm_install_env) do
-      install_npm_package_with_retries
+      system "npm", "install", *std_npm_args
     end
     bin.install_symlink Dir["#{libexec}/bin/*"]
 
-    # Step 4b: Warm default Solo images to reduce first-run setup time.
+    # Step 4b: Warm default SoloAT0830 images to reduce first-run setup time.
     pull_default_cache_images unless ENV.key?("HOMEBREW_NO_SOLO_CACHE")
   end
 
@@ -342,29 +335,6 @@ class Solo < Formula
 
   private
 
-  # Run `npm install` with bounded retries. npm's own fetch-retry config handles
-  # most transient failures, but a dropped connection during tarball unpack
-  # ("npm error network aborted") can still abort the whole install. Retrying with
-  # backoff lets a single `brew install` self-recover; the final attempt re-raises
-  # so a persistent failure still fails the build with npm's own error.
-  def install_npm_package_with_retries(max_attempts: 3, base_delay_seconds: 5)
-    attempt = 0
-    begin
-      attempt += 1
-      system "npm", "install", *std_npm_args
-    rescue BuildError => e
-      raise e if attempt >= max_attempts
-
-      delay = base_delay_seconds * attempt
-      opoo <<~EOS
-        npm install failed (attempt #{attempt}/#{max_attempts}): #{e.message}
-        This is usually a transient network issue. Retrying in #{delay}s...
-      EOS
-      sleep delay
-      retry
-    end
-  end
-
   def pull_default_cache_images
     solo_bin = libexec/"bin/solo"
     unless solo_bin.exist?
@@ -390,7 +360,7 @@ class Solo < Formula
     status = nil
     timed_out = false
 
-    ohai "Pre-pulling default Solo cache images..."
+    ohai "Pre-pulling default SoloAT0830 cache images..."
     Open3.popen2e(solo_bin.to_s, "cache", "image", "pull") do |_stdin, output, wait_thread|
       loop do
         chunk = output.read_nonblock(read_chunk_size, exception: false)
@@ -420,7 +390,7 @@ class Solo < Formula
           end
 
           if (Time.now - last_progress_log_at) >= progress_interval_seconds
-            ohai "Still pre-pulling Solo cache images... #{elapsed_seconds}s elapsed."
+            ohai "Still pre-pulling SoloAT0830 cache images... #{elapsed_seconds}s elapsed."
             last_progress_log_at = Time.now
           end
 
@@ -456,7 +426,7 @@ class Solo < Formula
     ohai "Completed `solo cache image pull`."
   rescue LoadError, StandardError => e
     opoo <<~EOS
-      ATTENTION: Could not pre-pull Solo cache images during install (#{e.message}).
+      ATTENTION: Could not pre-pull SoloAT0830 cache images during install (#{e.message}).
       You can run it manually any time with:
         solo cache image pull
     EOS
@@ -472,7 +442,7 @@ class Solo < Formula
 
     diagnostics_commands.each do |command|
       begin
-        ohai "Collecting Solo diagnostic logs with `#{command.join(' ')}`..."
+        ohai "Collecting SoloAT0830 diagnostic logs with `#{command.join(' ')}`..."
         command_result = Timeout.timeout(diagnostics_timeout_seconds) { Open3.capture2e(*command) }
         output = command_result[0]
         status = command_result[1]
@@ -492,7 +462,7 @@ class Solo < Formula
       end
     end
 
-    opoo "ATTENTION: Unable to collect Solo diagnostic logs automatically." unless diagnostics_collected
+    opoo "ATTENTION: Unable to collect SoloAT0830 diagnostic logs automatically." unless diagnostics_collected
   end
 
   def detect_solo_version_at(path)
