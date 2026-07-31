@@ -331,6 +331,12 @@ class Solo < Formula
 
   def caveats
     <<~EOS
+      WARNING: Homebrew support for Solo is being removed.
+      This formula stops being updated after August 31, 2026.
+      Switch to npm to keep receiving updates:
+        brew uninstall solo && npm install -g @hiero-ledger/solo
+      Upgrade guide: https://solo.hiero.org/docs/simple-solo-setup/upgrading-solo/
+
       If `solo` still resolves to an old path after install, your shell may be using a cached command path.
       Refresh your shell command cache:
         hash -r
