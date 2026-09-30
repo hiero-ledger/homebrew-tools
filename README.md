@@ -3,6 +3,8 @@
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/10697/badge)](https://bestpractices.coreinfrastructure.org/projects/10697)
 [![License](https://img.shields.io/badge/license-apache2-blue.svg)](LICENSE)
 
+> ⚠️ **Homebrew support for Solo is deprecated.** Solo stopped publishing updates to Homebrew after August 31, 2026. Install via npm instead: `npm install -g @hiero-ledger/solo@latest`. If you have Solo installed via Homebrew, migrate to npm and run `brew uninstall hiero-ledger/tools/solo` to avoid conflicts.
+
 ## How to install Solo using Brew
 Install the latest version of Solo using Homebrew:
 ```
